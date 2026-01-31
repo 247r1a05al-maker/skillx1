@@ -12,6 +12,7 @@ import ThemeToggle from './components/ThemeToggle'
 import CursorLight from './components/CursorLight'
 import CommandPalette from './components/CommandPalette'
 import { ToastContainer } from './components/Toast'
+import RobotMascot from './features/robot-mascot'
 
 // Pages
 import Login from './pages/Login'
@@ -280,6 +281,7 @@ function App() {
         </Routes>
       </Layout>
       <ThemeToggle />
+      <RobotMascot />
     </Router>
     </ThemeProvider>
   )

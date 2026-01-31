@@ -42,9 +42,11 @@ const Dashboard = () => {
       setIsLoading(true)
       try {
         const userId = authUser.uid || authUser.id
+        console.log('📊 Loading dashboard for user:', userId)
 
         // Load earning opportunities
         const opportunities = await firebaseRealtime.getEarningOpportunities(userId)
+        console.log('🎁 Earning opportunities:', opportunities)
         setEarningOpportunities(opportunities)
 
         // Subscribe to all users for recommendations
@@ -65,10 +67,11 @@ const Dashboard = () => {
         // Get user coins
         const userRef = await firebaseRealtime.getFollowersCount(userId) // Just using this to test user exists
         setStats(prev => ({ ...prev, coins: authUser.coins || 0 }))
+        console.log('💰 User coins:', authUser.coins)
 
         return () => unsubscribe?.()
       } catch (error) {
-        console.error('Error loading dashboard data:', error)
+        console.error('❌ Error loading dashboard data:', error)
         setIsLoading(false)
       }
     }
@@ -85,6 +88,12 @@ const Dashboard = () => {
 
     if (opportunity.claimed) {
       showError('You have already claimed this reward')
+      return
+    }
+
+    // Validate task is actually completed
+    if (!opportunity.canClaim) {
+      showError('Please complete the task first before claiming rewards')
       return
     }
 

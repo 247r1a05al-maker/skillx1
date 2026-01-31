@@ -2114,9 +2114,17 @@ class FirebaseRealtimeService {
 
     try {
       const opportunities = []
+      
+      // Get user profile data
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      const userSnapshot = await get(userRef)
+      const userProfile = userSnapshot.exists() ? userSnapshot.val() : {}
 
-      // Registration Bonus
+      console.log('👤 User profile for earnings:', userProfile)
+
+      // Registration Bonus - always available once (one-time)
       const registrationClaimed = await this.checkRegistrationBonusClaimed(userId)
+      console.log('📦 Registration claimed:', registrationClaimed)
       opportunities.push({
         id: 'registration-bonus',
         title: 'Registration Bonus',
@@ -2128,8 +2136,16 @@ class FirebaseRealtimeService {
         action: 'claimRegistrationBonus'
       })
 
-      // Profile Completion
+      // Profile Completion - must actually have bio AND skills
       const profileClaimed = await this.checkProfileCompletionClaimed(userId)
+      const hasBio = userProfile.bio && userProfile.bio.trim().length > 0
+      const hasTeachingSkills = userProfile.skills && 
+                                userProfile.skills.teaching && 
+                                Array.isArray(userProfile.skills.teaching) &&
+                                userProfile.skills.teaching.length > 0
+      const profileComplete = hasBio && hasTeachingSkills
+      
+      console.log('📝 Profile - claimed:', profileClaimed, '| hasBio:', hasBio, '| hasSkills:', hasTeachingSkills, '| canClaim:', !profileClaimed && profileComplete)
       opportunities.push({
         id: 'profile-completion',
         title: 'Complete Your Profile',
@@ -2137,12 +2153,16 @@ class FirebaseRealtimeService {
         coins: 5,
         icon: '✍️',
         claimed: profileClaimed,
-        canClaim: !profileClaimed,
+        canClaim: !profileClaimed && profileComplete,
         action: 'claimProfileCompletion'
       })
 
-      // Join Group
+      // Join Group - must actually be in a group
       const joinGroupClaimed = await this.checkJoinGroupClaimed(userId)
+      const userGroupCount = userProfile.groups ? Object.keys(userProfile.groups).length : 0
+      const joinedGroup = userGroupCount > 0
+      
+      console.log('👥 Group - claimed:', joinGroupClaimed, '| count:', userGroupCount, '| canClaim:', !joinGroupClaimed && joinedGroup)
       opportunities.push({
         id: 'join-group',
         title: 'Join a Group',
@@ -2150,13 +2170,15 @@ class FirebaseRealtimeService {
         coins: 10,
         icon: '👥',
         claimed: joinGroupClaimed,
-        canClaim: !joinGroupClaimed,
+        canClaim: !joinGroupClaimed && joinedGroup,
         action: 'claimJoinGroupBonus'
       })
 
-      // Follow 10 Members
+      // Follow 10 Members - must actually follow 10 users
       const follow10Claimed = await this.checkFollowMilestoneClaimed(userId, 10)
       const followingCount = await this.getFollowingCount(userId)
+      
+      console.log('🤝 Follow - claimed:', follow10Claimed, '| count:', followingCount, '| canClaim:', !follow10Claimed && followingCount >= 10)
       opportunities.push({
         id: 'follow-10',
         title: 'Follow 10 Members',
@@ -2170,6 +2192,7 @@ class FirebaseRealtimeService {
         action: 'claimFollowMilestone'
       })
 
+      console.log('✅ Final opportunities:', opportunities)
       return opportunities
     } catch (error) {
       console.error('Error getting earning opportunities:', error)

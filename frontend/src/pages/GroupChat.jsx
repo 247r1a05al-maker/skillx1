@@ -203,7 +203,14 @@ const GroupChat = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
-            <p className="text-sm text-gray-600">{members.length} members</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-sm text-gray-600">{members.length} members</p>
+              <span className="text-gray-300">•</span>
+              <span className="flex items-center gap-1 text-sm text-green-600 font-medium">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                {members.filter((m) => allUsers.find((u) => u.id === m.userId || u.uid === m.userId)?.isOnline).length} online
+              </span>
+            </div>
           </div>
         </div>
 
@@ -362,20 +369,29 @@ const GroupChat = () => {
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {members.map((member) => {
                 const user = allUsers.find((u) => u.id === member.userId || u.uid === member.userId)
+                const isOnline = user?.isOnline || false
                 return (
-                  <div key={member.userId} className="p-2 hover:bg-gray-50 rounded-lg transition">
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.userId}`}
-                        alt={user?.name}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-gray-900">{user?.name || 'User'}</p>
+                  <div key={member.userId} className="p-3 hover:bg-gray-50 rounded-lg transition group">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <img
+                          src={user?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.userId}`}
+                          alt={user?.name}
+                          className="w-10 h-10 rounded-full object-cover border-2 border-white"
+                        />
+                        <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                          isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                        }`}></span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 flex items-center gap-1">
+                          {user?.name || 'User'}
+                          {isOnline && <span className="text-xs text-green-600 font-bold">●</span>}
+                        </p>
                         <p className="text-xs text-gray-500">{member.role}</p>
                       </div>
                       {member.role === 'admin' && (
-                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">Admin</span>
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded whitespace-nowrap font-semibold">Admin</span>
                       )}
                     </div>
                   </div>
