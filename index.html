@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Skill Exchange Platform</title>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var redirect = params.get('redirect');
+        if (redirect) {
+          params.delete('redirect');
+          var query = params.toString();
+          var target = '/' + redirect.replace(/^\/+/, '');
+          if (query) target += '?' + query;
+          window.history.replaceState(null, '', target);
+        }
+      })();
+    </script>
     <script type="module" crossorigin src="/skillx1/assets/index-J7V0pGZ-.js"></script>
     <link rel="stylesheet" crossorigin href="/skillx1/assets/index-C_cUghCf.css">
   </head>

@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=/skillx1/" />
+    <script>
+      (function () {
+        var path = window.location.pathname;
+        var query = window.location.search || '';
+        var hash = window.location.hash || '';
+        var base = '/skillx1/';
+        if (path.startsWith(base)) {
+          var route = path.slice(base.length);
+          var target = base + '?redirect=' + encodeURIComponent(route + query + hash);
+          window.location.replace(target);
+        } else {
+          window.location.replace(base);
+        }
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
