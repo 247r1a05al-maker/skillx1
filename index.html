@@ -11,7 +11,8 @@
         if (redirect) {
           params.delete('redirect');
           var query = params.toString();
-          var target = '/' + redirect.replace(/^\/+/, '');
+          var base = '/skillx1/';
+          var target = base.replace(/\/+$/, '/') + redirect.replace(/^\/+/, '');
           if (query) target += '?' + query;
           window.history.replaceState(null, '', target);
         }
