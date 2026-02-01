@@ -12,7 +12,6 @@ import ThemeToggle from './components/ThemeToggle'
 import CursorLight from './components/CursorLight'
 import CommandPalette from './components/CommandPalette'
 import { ToastContainer } from './components/Toast'
-import RobotMascot from './features/robot-mascot'
 
 // Pages
 import Login from './pages/Login'
@@ -152,7 +151,7 @@ function App() {
       <CursorLight />
       <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
       <ToastContainer toasts={toasts} removeToast={removeToast} />
-      <Router>
+      <Router basename={import.meta.env.BASE_URL}>
         <Layout>
           <Routes>
           {/* Default redirect */}
@@ -281,7 +280,6 @@ function App() {
         </Routes>
       </Layout>
       <ThemeToggle />
-      <RobotMascot />
     </Router>
     </ThemeProvider>
   )

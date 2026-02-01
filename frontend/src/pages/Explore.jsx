@@ -20,14 +20,54 @@ const Explore = () => {
   const [featuredUsers, setFeaturedUsers] = useState([])
   const [recommendedUsers, setRecommendedUsers] = useState([])
 
+  // Demo users fallback
+  const demoUsers = [
+    {
+      id: 'demo-1',
+      name: 'Alex Chen',
+      email: 'alex@example.com',
+      bio: 'Full-stack developer passionate about React and Node.js',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=alex',
+      skills: ['React', 'Node.js', 'JavaScript'],
+      rating: 4.8,
+      completedExchanges: 12,
+      isOnline: true,
+    },
+    {
+      id: 'demo-2',
+      name: 'Sarah Johnson',
+      email: 'sarah@example.com',
+      bio: 'UI/UX Designer with 5+ years experience in Figma',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sarah',
+      skills: ['UI Design', 'UX Research', 'Figma'],
+      rating: 4.9,
+      completedExchanges: 28,
+      isOnline: true,
+    },
+    {
+      id: 'demo-3',
+      name: 'Raj Patel',
+      email: 'raj@example.com',
+      bio: 'Data scientist specializing in Python and Machine Learning',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=raj',
+      skills: ['Python', 'Machine Learning', 'Data Analysis'],
+      rating: 4.7,
+      completedExchanges: 18,
+      isOnline: true,
+    },
+  ]
+
   // Load users from Firebase
   useEffect(() => {
     const userId = authUser?.uid || authUser?.id
     if (!userId) return
 
-    const unsubscribe = firebaseRealtime.subscribeToUsers((users) => {
+    const unsubscribe = firebaseRealtime.subscribeToUsers((firebaseUsers) => {
+      // Use Firebase users if available, otherwise use demo users
+      let usersToDisplay = firebaseUsers && firebaseUsers.length > 0 ? firebaseUsers : demoUsers
+      
       // Filter out current user - check against all possible ID formats
-      const otherUsers = users.filter((u) => {
+      const otherUsers = usersToDisplay.filter((u) => {
         // Don't show if user ID matches any of these
         return u.id !== userId && 
                u.id !== authUser?.uid && 

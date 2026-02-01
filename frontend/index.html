@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Skill Exchange Platform</title>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var redirect = params.get('redirect');
+        if (redirect) {
+          params.delete('redirect');
+          var query = params.toString();
+          var base = '%BASE_URL%';
+          var target = base.replace(/\/+$/, '/') + redirect.replace(/^\/+/, '');
+          if (query) target += '?' + query;
+          window.history.replaceState(null, '', target);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import mongoose from 'mongoose'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
+import authOtpRouter from './routes/auth-otp.js'
 
 dotenv.config()
 
@@ -76,10 +77,7 @@ io.on('connection', (socket) => {
 })
 
 // Routes
-app.use('/api/auth', (req, res) => {
-  // Auth routes will be implemented
-  res.json({ message: 'Auth API' })
-})
+app.use('/api/auth', authOtpRouter)
 
 app.use('/api/users', (req, res) => {
   // User routes will be implemented
