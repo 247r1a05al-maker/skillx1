@@ -1727,6 +1727,12 @@ class FirebaseRealtimeService {
     
     const session = sessionSnapshot.val()
     
+    // 🔒 SECURITY: Check for existing active sessions (prevent multiple tabs)
+    const existingActiveSession = await this.checkUserActiveSession(learnerId)
+    if (existingActiveSession) {
+      throw new Error('You already have an active session. Please complete or leave the current session first.')
+    }
+    
     // For demo courses, use fixed 25 coins
     const coinsToDeduct = session.isDemoCourse ? 25 : session.coinsCost
     
@@ -1735,10 +1741,9 @@ class FirebaseRealtimeService {
     const learnerSnapshot = await get(learnerRef)
     const learnerData = learnerSnapshot.val()
     
-    // For demo, don't check coins immediately (they'll be deducted when demo ends)
-    // For full course, check coins now
-    if (!session.isDemoCourse && (learnerData.coins || 0) < coinsToDeduct) {
-      throw new Error('Insufficient coins')
+    // Check coins for BOTH demo and full course
+    if ((learnerData.coins || 0) < coinsToDeduct) {
+      throw new Error(`Insufficient coins. You need ${coinsToDeduct} coins.`)
     }
     
     // Create booking
@@ -1752,37 +1757,50 @@ class FirebaseRealtimeService {
       isDemoCourse: session.isDemoCourse || false,
       scheduledTime: selectedSlot,
       status: 'pending',
+      coinsDeducted: false, // Track if coins already deducted
       createdAt: serverTimestamp(),
     }
     
-    // For full course, deduct coins immediately
-    if (!session.isDemoCourse) {
-      const oldLearnerCoins = learnerData.coins || 0
-      const newLearnerCoins = oldLearnerCoins - coinsToDeduct
-      
-      await update(learnerRef, {
-        coins: newLearnerCoins,
-        coinsInEscrow: ((learnerData.coinsInEscrow || 0) + coinsToDeduct)
-      })
-      
-      console.log(`💰 SESSION BOOKED: Learner ${learnerId} spent -${coinsToDeduct} coins for "${session.skillName}" | Old: ${oldLearnerCoins} → New: ${newLearnerCoins}`)
-      
-      // Record learner spending transaction
-      const learnerTxRef = push(ref(realtimeDb, `coinTransactions/${learnerId}`))
-      await set(learnerTxRef, {
-        type: 'spent',
-        amount: -coinsToDeduct,
-        reason: `Session booked: ${session.skillName}`,
-        timestamp: serverTimestamp(),
-        balanceAfter: newLearnerCoins,
-        bookingId: bookingRef.key
-      })
-    } else {
-      // For demo, coins will be deducted when demo ends
-      console.log(`🎓 DEMO BOOKED: Learner ${learnerId} joining demo "${session.skillName}" (25 coins will be deducted on completion)`)
+    // ✅ CRITICAL FIX: Deduct coins IMMEDIATELY for BOTH demo and full course
+    // This prevents coin double-spending exploits
+    const deductResult = await this.safelyDeductCoins(
+      learnerId,
+      coinsToDeduct,
+      `${session.isDemoCourse ? 'Demo' : 'Session'} booking: ${session.skillName}`,
+      bookingRef.key
+    )
+    
+    if (!deductResult.success) {
+      throw new Error(deductResult.error)
     }
     
+    // Update booking to mark coins as deducted
+    booking.coinsDeducted = true
+    booking.coinsDeductedAt = serverTimestamp()
+    
+    // Track in escrow for full courses (for teacher payment)
+    if (!session.isDemoCourse) {
+      await update(learnerRef, {
+        coinsInEscrow: ((learnerData.coinsInEscrow || 0) + coinsToDeduct)
+      })
+    }
+    
+    const deductType = session.isDemoCourse ? '🎓 DEMO' : '💼 FULL COURSE'
+    const logMsg = session.isDemoCourse 
+      ? `DEMO BOOKED: Learner ${learnerId} joined demo "${session.skillName}" (25 coins deducted immediately)`
+      : `SESSION BOOKED: Learner ${learnerId} booked full course "${session.skillName}" (${coinsToDeduct} coins deducted)`
+    console.log(`${deductType}: ${logMsg}`)
+    
     await set(bookingRef, booking)
+    
+    // Log event for audit
+    await this.logSessionEvent(learnerId, 'demo_booked', {
+      sessionId,
+      bookingId: bookingRef.key,
+      isDemoCourse: session.isDemoCourse,
+      coinsDeducted
+    })
+    
     return { id: bookingRef.key, ...booking }
   }
 
@@ -2816,6 +2834,153 @@ class FirebaseRealtimeService {
 
   // ===== LIVE SESSION ROOM MANAGEMENT =====
 
+  // 🔒 SECURITY: Check if user has an active session (prevent multiple tabs exploit)
+  async checkUserActiveSession(userId) {
+    try {
+      const sessionsRef = ref(realtimeDb, 'sessionRooms')
+      const snapshot = await get(sessionsRef)
+      
+      if (!snapshot.exists()) return null
+      
+      for (const [roomId, roomData] of Object.entries(snapshot.val())) {
+        if (roomData.status === 'active' && roomData.participants?.[userId]) {
+          return roomId // User has active session in this room
+        }
+      }
+      
+      return null // No active session
+    } catch (error) {
+      console.error('Error checking active session:', error)
+      return null
+    }
+  }
+
+  // 🔒 SECURITY: Prevent double join - check if already in participants
+  async canUserJoinRoom(roomId, userId) {
+    try {
+      const roomRef = ref(realtimeDb, `sessionRooms/${roomId}`)
+      const snapshot = await get(roomRef)
+      
+      if (!snapshot.exists()) return { canJoin: false, reason: 'Room not found' }
+      
+      const room = snapshot.val()
+      
+      if (room.status !== 'active') {
+        return { canJoin: false, reason: 'Session is not active' }
+      }
+      
+      if (room.participants?.[userId]) {
+        return { canJoin: false, reason: 'Already joined' }
+      }
+      
+      return { canJoin: true }
+    } catch (error) {
+      console.error('Error checking join eligibility:', error)
+      return { canJoin: false, reason: 'Error checking session' }
+    }
+  }
+
+  // 💰 ATOMIC: Safely deduct coins with database-level check
+  async safelyDeductCoins(userId, amount, reason, bookingId) {
+    try {
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      const userSnapshot = await get(userRef)
+      
+      if (!userSnapshot.exists()) {
+        return { success: false, error: 'User not found' }
+      }
+      
+      const user = userSnapshot.val()
+      const currentCoins = user.coins || 0
+      
+      // Check if sufficient coins available (atomic check)
+      if (currentCoins < amount) {
+        return { success: false, error: 'Insufficient coins', currentCoins }
+      }
+      
+      const newCoins = currentCoins - amount
+      
+      // Update coins and record transaction atomically
+      await update(userRef, {
+        coins: newCoins,
+        lastCoinUpdate: serverTimestamp()
+      })
+      
+      // Log audit event
+      const auditRef = push(ref(realtimeDb, `auditLogs/coinTransactions/${userId}`))
+      await set(auditRef, {
+        type: 'coin_deduction',
+        amount: -amount,
+        reason,
+        bookingId,
+        timestamp: serverTimestamp(),
+        balanceAfter: newCoins,
+        balanceBefore: currentCoins
+      })
+      
+      console.log(`💰 COINS DEDUCTED: User ${userId} | Amount: -${amount} | Reason: ${reason} | Balance: ${currentCoins} → ${newCoins}`)
+      
+      return { success: true, newCoins, balanceBefore: currentCoins }
+    } catch (error) {
+      console.error('Error deducting coins:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  // 📝 AUDIT: Log session events
+  async logSessionEvent(userId, eventType, sessionData) {
+    try {
+      const logRef = push(ref(realtimeDb, `auditLogs/sessionEvents/${userId}`))
+      await set(logRef, {
+        eventType, // 'demo_joined', 'demo_left', 'session_ended', etc.
+        sessionId: sessionData.sessionId,
+        bookingId: sessionData.bookingId,
+        isDemoCourse: sessionData.isDemoCourse,
+        timestamp: serverTimestamp(),
+        detail: sessionData
+      })
+    } catch (error) {
+      console.error('Error logging session event:', error)
+    }
+  }
+
+  // 🧹 CLEANUP: Find and cleanup abandoned sessions (cron-like)
+  async cleanupAbandonedSessions(maxAgeMinutes = 120) {
+    try {
+      const sessionsRef = ref(realtimeDb, 'sessionRooms')
+      const snapshot = await get(sessionsRef)
+      
+      if (!snapshot.exists()) return { cleaned: 0 }
+      
+      const now = Date.now()
+      let cleanedCount = 0
+      
+      for (const [roomId, roomData] of Object.entries(snapshot.val())) {
+        if (roomData.status === 'active' && roomData.startedAt) {
+          const startTime = roomData.startedAt * 1000 // Convert to ms
+          const ageMinutes = (now - startTime) / (1000 * 60)
+          
+          if (ageMinutes > maxAgeMinutes) {
+            // Mark as completed
+            await update(ref(realtimeDb, `sessionRooms/${roomId}`), {
+              status: 'ended',
+              endedAt: serverTimestamp(),
+              endReason: 'auto_timeout'
+            })
+            
+            console.log(`🧹 Cleanup: Session ${roomId} ended (age: ${ageMinutes}min)`)
+            cleanedCount++
+          }
+        }
+      }
+      
+      return { cleaned: cleanedCount }
+    } catch (error) {
+      console.error('Error cleaning up sessions:', error)
+      return { cleaned: 0, error: error.message }
+    }
+  }
+
   // Create a live session room (when user joins demo/session)
   async createSessionRoom(bookingId, teacherId, learnerId, sessionData) {
     try {
@@ -2846,8 +3011,26 @@ class FirebaseRealtimeService {
   // Join an active session room
   async joinSessionRoom(roomId, userId) {
     try {
+      // 🔒 SECURITY: Check if already joined or room is inactive
+      const joinCheck = await this.canUserJoinRoom(roomId, userId)
+      if (!joinCheck.canJoin) {
+        return { success: false, error: joinCheck.reason }
+      }
+      
+      // 🔒 SECURITY: Check for active sessions in other rooms
+      const existingActiveSession = await this.checkUserActiveSession(userId)
+      if (existingActiveSession && existingActiveSession !== roomId) {
+        return { success: false, error: 'Already in active session. Leave current session first.' }
+      }
+      
       const participantRef = ref(realtimeDb, `sessionRooms/${roomId}/participants/${userId}`)
-      await set(participantRef, { joined: true, joinedAt: serverTimestamp() })
+      await set(participantRef, { 
+        joined: true, 
+        joinedAt: serverTimestamp(),
+        status: 'active'
+      })
+      
+      console.log(`✅ User ${userId} joined session ${roomId}`)
       return { success: true }
     } catch (error) {
       console.error('Error joining room:', error)

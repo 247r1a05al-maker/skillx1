@@ -100,23 +100,21 @@ const LiveSession = ({
       const isTeacher = user.uid === booking.teacherId || user.id === booking.teacherId
       
       if (isTeacher) {
-        // If demo, deduct coins now
-        if (session.isDemoCourse) {
-          await firebaseRealtimeService.deductCoinsForDemoCompletion(
-            booking.learnerId,
-            25, // Fixed 25 coins for demo
-            session.skillName,
-            roomId
-          )
-        } else {
-          // For full course, mark as completed
-          await firebaseRealtimeService.completeSession(roomId, 5)
-        }
-        
+        // ✅ COINS ALREADY DEDUCTED AT BOOKING TIME
+        // Just mark session as ended
         await firebaseRealtimeService.endSessionRoom(roomId)
+        
+        // Log completion event
+        await firebaseRealtimeService.logSessionEvent(booking.learnerId, 'session_ended', {
+          sessionId: session.id,
+          bookingId: roomId,
+          isDemoCourse: session.isDemoCourse,
+          completedBy: 'teacher'
+        })
       }
 
-      success('Session ended')
+      console.log(`✅ Session ended. Coins were deducted at booking time.`)
+      success('Session ended successfully')
       if (onSessionEnd) onSessionEnd()
     } catch (err) {
       console.error('Error ending session:', err)
@@ -126,7 +124,18 @@ const LiveSession = ({
 
   const handleLeaveSession = async () => {
     try {
+      // 📝 Log that user left session
+      await firebaseRealtimeService.logSessionEvent(user.uid || user.id, 'user_left_session', {
+        sessionId: session.id,
+        bookingId: roomId,
+        isDemoCourse: session.isDemoCourse,
+        timeRemaining // How much time was left when user left
+      })
+      
       await firebaseRealtimeService.leaveSessionRoom(roomId, user.uid || user.id)
+      
+      // ⚠️ IMPORTANT: Coins already deducted at booking - no refunds
+      success('You left the session. (Coins already deducted at booking)')
       onClose()
     } catch (err) {
       showError('Error leaving session')

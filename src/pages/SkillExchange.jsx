@@ -122,7 +122,16 @@ const SkillExchange = () => {
 
   const confirmBooking = async () => {
     try {
+      // 🔒 SECURITY: Check if user already has active session
+      const existingSession = await firebaseRealtimeService.checkUserActiveSession(user.id)
+      if (existingSession) {
+        showError('You already have an active session. Please complete or leave it first.')
+        return
+      }
+
       const selectedSlot = new Date().toISOString()
+      
+      // Book session (coins deducted here)
       const booking = await firebaseRealtimeService.bookSession(selectedSession.id, user.id, selectedSlot)
       
       // Create live session room
@@ -133,12 +142,28 @@ const SkillExchange = () => {
         selectedSession
       )
 
+      // 🔒 SECURITY: Join the room with validation
+      const joinResult = await firebaseRealtimeService.joinSessionRoom(booking.id, user.id)
+      if (!joinResult.success) {
+        showError(joinResult.error || 'Failed to join session')
+        return
+      }
+
       setCurrentSessionRoom(booking)
       setCurrentSessionTeacher(selectedSession.teacher)
       setShowBookModal(false)
       setSelectedSession(null)
       setShowLiveSession(true)
-      success('Joining session...')
+      
+      // ⚠️ Alert user that coins are deducted immediately
+      success(`✅ Joining ${selectedSession.isDemoCourse ? 'demo' : 'session'}... (${booking.coinsCost} coins deducted)`)
+      
+      // Log booking event
+      await firebaseRealtimeService.logSessionEvent(user.id, 'demo_joined', {
+        sessionId: selectedSession.id,
+        bookingId: booking.id,
+        isDemoCourse: selectedSession.isDemoCourse
+      })
     } catch (err) {
       showError(err.message || 'Failed to book session')
     }
@@ -695,11 +720,14 @@ const SkillExchange = () => {
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               {selectedSession.isDemoCourse ? (
                 <>
-                  <p className="text-sm text-yellow-800">
-                    🎓 Try this demo class and see the teaching style
+                  <p className="text-sm text-yellow-800 font-semibold">
+                    🎓 Demo Class (25 coins fixed)
                   </p>
                   <p className="text-sm text-yellow-800 mt-2">
-                    💰 25 coins will be deducted <strong>when the demo ends</strong>
+                    ⚠️ <strong>25 coins will be deducted immediately</strong> when you join
+                  </p>
+                  <p className="text-sm text-yellow-800 mt-2">
+                    💡 No refunds if you leave early - coins are non-refundable
                   </p>
                   <p className="text-sm text-yellow-800 mt-2">
                     📈 Love it? You can upgrade to the full course!
@@ -707,11 +735,17 @@ const SkillExchange = () => {
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-yellow-800">
-                    ⚠️ {selectedSession.coinsCost} coins will be deducted from your balance
+                  <p className="text-sm text-yellow-800 font-semibold">
+                    ⚠️ Full Course Booking
                   </p>
-                  <p className="text-sm text-yellow-800 mt-1">
-                    💰 Your new balance: {userStats.coinsBalance - selectedSession.coinsCost} coins
+                  <p className="text-sm text-yellow-800 mt-2">
+                    💰 <strong>{selectedSession.coinsCost} coins will be deducted immediately</strong> when you join
+                  </p>
+                  <p className="text-sm text-yellow-800">
+                    Your new balance: {userStats.coinsBalance - selectedSession.coinsCost} coins
+                  </p>
+                  <p className="text-sm text-yellow-800 mt-2">
+                    💡 No refunds if you leave early - discuss with teacher for reschedule
                   </p>
                 </>
               )}
