@@ -1,0 +1,143 @@
+/* ==========================================
+   ELITE MODE - FORCE ALL TEXT TO WHITE
+   ========================================== */
+
+/* NUCLEAR OPTION - Override everything */
+html.theme-elite {
+  color: #ffffff !important;
+}
+
+html.theme-elite body {
+  color: #ffffff !important;
+}
+
+html.theme-elite * {
+  color: #ffffff !important;
+}
+
+/* All HTML elements */
+html.theme-elite h1,
+html.theme-elite h2,
+html.theme-elite h3,
+html.theme-elite h4,
+html.theme-elite h5,
+html.theme-elite h6,
+html.theme-elite p,
+html.theme-elite span,
+html.theme-elite div,
+html.theme-elite section,
+html.theme-elite nav,
+html.theme-elite header,
+html.theme-elite footer,
+html.theme-elite ul,
+html.theme-elite ol,
+html.theme-elite li,
+html.theme-elite a,
+html.theme-elite button,
+html.theme-elite label,
+html.theme-elite td,
+html.theme-elite th,
+html.theme-elite tr,
+html.theme-elite table,
+html.theme-elite form {
+  color: #ffffff !important;
+}
+
+/* Sidebar - specific */
+html.theme-elite .theme-sidebar {
+  color: #ffffff !important;
+}
+
+html.theme-elite .theme-sidebar * {
+  color: #ffffff !important;
+}
+
+html.theme-elite [class*="sidebar"] {
+  color: #ffffff !important;
+}
+
+html.theme-elite [class*="sidebar"] * {
+  color: #ffffff !important;
+}
+
+/* All Tailwind text classes */
+html.theme-elite .text-black,
+html.theme-elite .text-white,
+html.theme-elite .text-gray-50,
+html.theme-elite .text-gray-100,
+html.theme-elite .text-gray-200,
+html.theme-elite .text-gray-300,
+html.theme-elite .text-gray-400,
+html.theme-elite .text-gray-500,
+html.theme-elite .text-gray-600,
+html.theme-elite .text-gray-700,
+html.theme-elite .text-gray-800,
+html.theme-elite .text-gray-900,
+html.theme-elite .text-slate-50,
+html.theme-elite .text-slate-100,
+html.theme-elite .text-slate-200,
+html.theme-elite .text-slate-300,
+html.theme-elite .text-slate-400,
+html.theme-elite .text-slate-500,
+html.theme-elite .text-slate-600,
+html.theme-elite .text-slate-700,
+html.theme-elite .text-slate-800,
+html.theme-elite .text-slate-900,
+html.theme-elite .text-neutral-50,
+html.theme-elite .text-neutral-100,
+html.theme-elite .text-neutral-200,
+html.theme-elite .text-neutral-300,
+html.theme-elite .text-neutral-400,
+html.theme-elite .text-neutral-500,
+html.theme-elite .text-neutral-600,
+html.theme-elite .text-neutral-700,
+html.theme-elite .text-neutral-800,
+html.theme-elite .text-neutral-900,
+html.theme-elite .text-zinc-900,
+html.theme-elite .text-zinc-800,
+html.theme-elite .text-stone-900,
+html.theme-elite .text-stone-800 {
+  color: #ffffff !important;
+}
+
+/* Input fields - Gold */
+html.theme-elite input,
+html.theme-elite textarea,
+html.theme-elite select {
+  color: #ffd700 !important;
+}
+
+html.theme-elite input::placeholder,
+html.theme-elite textarea::placeholder {
+  color: rgba(255, 215, 0, 0.6) !important;
+}
+
+/* Special theme classes */
+html.theme-elite .theme-text-primary {
+  color: #00f0ff !important;
+}
+
+html.theme-elite .theme-text-secondary {
+  color: #ffffff !important;
+}
+
+html.theme-elite .theme-text-tertiary {
+  color: #ffffff !important;
+}
+
+html.theme-elite .theme-text-accent {
+  color: #ffd700 !important;
+}
+
+/* Button text */
+html.theme-elite button {
+  color: #ffffff !important;
+}
+
+html.theme-elite .btn-primary {
+  color: #0a0f1c !important;
+}
+
+html.theme-elite .btn-primary:hover {
+  color: #0a0f1c !important;
+}
