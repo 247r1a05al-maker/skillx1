@@ -1715,6 +1715,18 @@ class FirebaseRealtimeService {
   }
 
   // Book a teaching session
+  // Check if learner has completed demo with this teacher
+  async hasCompletedDemo(learnerId, teacherId) {
+    try {
+      const completedDemoRef = ref(realtimeDb, `users/${learnerId}/completedDemos/${teacherId}`)
+      const snapshot = await get(completedDemoRef)
+      return snapshot.exists()
+    } catch (error) {
+      console.error('Error checking demo completion:', error)
+      return false
+    }
+  }
+
   async bookSession(sessionId, learnerId, selectedSlot) {
     const bookingRef = push(ref(realtimeDb, 'sessionBookings'))
     const sessionRef = ref(realtimeDb, `teachingSessions/${sessionId}`)
@@ -1731,6 +1743,14 @@ class FirebaseRealtimeService {
     const existingActiveSession = await this.checkUserActiveSession(learnerId)
     if (existingActiveSession) {
       throw new Error('You already have an active session. Please complete or leave the current session first.')
+    }
+    
+    // ✅ REQUIREMENT: Must complete demo before booking full course
+    if (!session.isDemoCourse) {
+      const hasDemo = await this.hasCompletedDemo(learnerId, session.teacherId)
+      if (!hasDemo) {
+        throw new Error('You must complete a demo class with this teacher before booking the full course')
+      }
     }
     
     // For demo courses, use fixed 25 coins
@@ -1821,6 +1841,18 @@ class FirebaseRealtimeService {
       completedAt: serverTimestamp(),
       teacherRating
     })
+    
+    // Track demo completion if this was a demo course
+    if (booking.isDemoCourse) {
+      const completedDemosRef = ref(realtimeDb, `users/${booking.learnerId}/completedDemos/${booking.teacherId}`)
+      await set(completedDemosRef, {
+        sessionId: booking.sessionId,
+        skillName: booking.skillName,
+        completedAt: serverTimestamp(),
+        bookingId
+      })
+      console.log(`✅ Demo completion tracked: ${booking.learnerId} completed demo with teacher ${booking.teacherId}`)
+    }
     
     // Transfer coins from escrow to teacher
     const learnerRef = ref(realtimeDb, `users/${booking.learnerId}`)

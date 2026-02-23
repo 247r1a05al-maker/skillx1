@@ -612,7 +612,15 @@ const SkillExchange = () => {
           {newSession.isDemoCourse && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
               <p className="text-sm text-orange-800">
-                🎓 <strong>Demo Class:</strong> Free sample class for students. You only earn coins if they continue to the full course.
+                🎓 <strong>Demo Class:</strong> Fixed 25 coins. Students must complete this before booking your full course.
+              </p>
+            </div>
+          )}
+          
+          {!newSession.isDemoCourse && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                💼 <strong>Full Course:</strong> Students can only book this after completing a demo class with you.
               </p>
             </div>
           )}
@@ -681,11 +689,11 @@ const SkillExchange = () => {
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             {newSession.isDemoCourse ? (
               <p className="text-sm text-yellow-800">
-                🎓 <strong>Demo Class (Fixed 25 coins):</strong> Students pay 25 coins to try your demo. You earn coins only if they upgrade to the full course.
+                🎓 <strong>Demo Class (Fixed 25 coins):</strong> Students pay 25 coins and MUST complete this demo before they can book your full course.
               </p>
             ) : (
               <p className="text-sm text-yellow-800">
-                💡 <strong>Tip:</strong> You'll earn {newSession.coinsCost} + 10% bonus = {newSession.coinsCost + Math.floor(newSession.coinsCost * 0.1)} coins per session!
+                💡 <strong>Tip:</strong> You'll earn {newSession.coinsCost} + 10% bonus = {newSession.coinsCost + Math.floor(newSession.coinsCost * 0.1)} coins per session! (Students need demo completion first)
               </p>
             )}
           </div>
@@ -737,6 +745,9 @@ const SkillExchange = () => {
                 <>
                   <p className="text-sm text-yellow-800 font-semibold">
                     ⚠️ Full Course Booking
+                  </p>
+                  <p className="text-sm text-blue-800 font-semibold mt-2 bg-blue-100 p-2 rounded">
+                    📋 Requirement: You must complete a demo class first!
                   </p>
                   <p className="text-sm text-yellow-800 mt-2">
                     💰 <strong>{selectedSession.coinsCost} coins will be deducted immediately</strong> when you join
