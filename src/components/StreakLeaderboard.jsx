@@ -27,6 +27,11 @@ const StreakLeaderboard = ({ limit = 10 }) => {
               const userData = await firebaseRealtime.getUserData(entry.userId)
               const isCurrentUser = entry.userId === currentUserId
               
+              // Check if user wants to hide from leaderboard
+              if (userData?.hideFromLeaderboard && !isCurrentUser) {
+                return null // Filter out users who want privacy
+              }
+              
               return {
                 ...entry,
                 username: userData?.username || userData?.name || 'Anonymous',
@@ -45,8 +50,11 @@ const StreakLeaderboard = ({ limit = 10 }) => {
           })
         )
         
-        console.log('✅ Leaderboard enriched with user data:', enrichedData)
-        setLeaderboard(enrichedData)
+        // Filter out null entries (hidden users)
+        const filteredData = enrichedData.filter(entry => entry !== null)
+        
+        console.log('✅ Leaderboard enriched with user data:', filteredData.length, 'visible users')
+        setLeaderboard(filteredData)
         setIsLoading(false)
       } catch (error) {
         console.error('❌ Error enriching leaderboard:', error)

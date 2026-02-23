@@ -16,6 +16,7 @@ const Settings = () => {
     notificationsMessages: true,
     profilePublic: true,
     showOwnerBadge: false,
+    hideFromLeaderboard: false,
   })
   const [hasOwnerBadge, setHasOwnerBadge] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -29,19 +30,33 @@ const Settings = () => {
                       ownerIds.includes(authUser.username)
       setHasOwnerBadge(isOwner)
       
-      // Load user's badge display preference
-      if (isOwner) {
-        firebaseRealtime.getUserData(authUser.id).then((data) => {
-          if (data?.showOwnerBadge !== undefined) {
+      // Load user's preferences
+      firebaseRealtime.getUserData(authUser.id).then((data) => {
+        if (data) {
+          if (isOwner && data.showOwnerBadge !== undefined) {
             setSettings(prev => ({ ...prev, showOwnerBadge: data.showOwnerBadge }))
           }
-        })
-      }
+          if (data.hideFromLeaderboard !== undefined) {
+            setSettings(prev => ({ ...prev, hideFromLeaderboard: data.hideFromLeaderboard }))
+          }
+        }
+      })
     }
   }, [authUser])
 
   const handleSettingChange = (key) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }))
+    
+    // Auto-save privacy setting to Firebase
+    if (key === 'hideFromLeaderboard' && authUser?.id) {
+      firebaseRealtime.updateUserData(authUser.id, {
+        hideFromLeaderboard: !settings.hideFromLeaderboard,
+      }).then(() => {
+        console.log('✅ Privacy setting saved')
+      }).catch(error => {
+        console.error('❌ Failed to save privacy setting:', error)
+      })
+    }
   }
 
   const handleSaveOwnerBadge = async () => {
@@ -160,6 +175,19 @@ const Settings = () => {
                 type="checkbox"
                 checked={settings.profilePublic}
                 onChange={() => handleSettingChange('profilePublic')}
+                className="w-5 h-5 accent-indigo-600 rounded"
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition">
+              <div>
+                <p className="font-semibold text-gray-900">Hide from Leaderboard</p>
+                <p className="text-sm text-gray-600">Don't show my name or streak on the leaderboard</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={settings.hideFromLeaderboard}
+                onChange={() => handleSettingChange('hideFromLeaderboard')}
                 className="w-5 h-5 accent-indigo-600 rounded"
               />
             </div>

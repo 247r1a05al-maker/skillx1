@@ -2697,17 +2697,17 @@ class FirebaseRealtimeService {
         updatedAt: serverTimestamp(),
       })
 
-      // Award 1 coin for daily login
-      await this.awardCoins(userId, 1, 'Daily login streak bonus')
+      // Removed: No longer awarding coins for daily login
+      // await this.awardCoins(userId, 1, 'Daily login streak bonus')
 
-      // Award 5 coins bonus every 7 days
-      if (streakData.currentStreak > 0 && streakData.currentStreak % 7 === 0) {
-        await this.awardCoins(
-          userId,
-          5,
-          `7-day streak bonus! 🔥 ${streakData.currentStreak} days`
-        )
-      }
+      // Removed: No longer awarding bonus coins for 7-day streaks
+      // if (streakData.currentStreak > 0 && streakData.currentStreak % 7 === 0) {
+      //   await this.awardCoins(
+      //     userId,
+      //     5,
+      //     `7-day streak bonus! 🔥 ${streakData.currentStreak} days`
+      //   )
+      // }
 
       return {
         success: true,
