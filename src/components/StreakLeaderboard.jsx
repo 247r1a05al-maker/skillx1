@@ -27,8 +27,8 @@ const StreakLeaderboard = ({ limit = 10 }) => {
               const userData = await firebaseRealtime.getUserData(entry.userId)
               const isCurrentUser = entry.userId === currentUserId
               
-              // Check if user wants to hide from leaderboard
-              if (userData?.hideFromLeaderboard && !isCurrentUser) {
+              // Check if user wants to hide from leaderboard (including from their own view)
+              if (userData?.hideFromLeaderboard) {
                 return null // Filter out users who want privacy
               }
               
