@@ -1635,8 +1635,8 @@ class FirebaseRealtimeService {
   async createTeachingSession(userId, sessionData) {
     const sessionRef = push(ref(realtimeDb, 'teachingSessions'))
     
-    // Force demo courses to have 25 coins
-    const coinsCost = sessionData.isDemoCourse ? 25 : (sessionData.coinsCost || 100)
+    // Demo-only mode: fixed 25 coins
+    const coinsCost = 25
     
     const session = {
       teacherId: userId,
@@ -1648,7 +1648,7 @@ class FirebaseRealtimeService {
       coinsCost: coinsCost,
       maxLearners: sessionData.maxLearners || 1,
       availableSlots: sessionData.availableSlots || [],
-      isDemoCourse: sessionData.isDemoCourse || false,
+      isDemoCourse: true,
       rating: 0,
       totalReviews: 0,
       totalSessions: 0,

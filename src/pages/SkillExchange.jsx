@@ -32,10 +32,10 @@ const SkillExchange = () => {
     category: 'Programming',
     description: '',
     duration: 60,
-    coinsCost: 100,
+    coinsCost: 25,
     maxLearners: 1,
-    isDemoCourse: false,
-    hasFullCourse: true,
+    isDemoCourse: true,
+    hasFullCourse: false,
   })
 
   const [rating, setRating] = useState(5)
@@ -95,10 +95,10 @@ const SkillExchange = () => {
         category: 'Programming',
         description: '',
         duration: 60,
-        coinsCost: 100,
+        coinsCost: 25,
         maxLearners: 1,
-        isDemoCourse: false,
-        hasFullCourse: true,
+        isDemoCourse: true,
+        hasFullCourse: false,
       })
     } catch (err) {
       showError(err.message || 'Failed to create session')
@@ -233,10 +233,11 @@ const SkillExchange = () => {
   }
 
   const filteredSessions = teachingSessions.filter(session => {
+    const isDemoOnly = session.isDemoCourse === true
     const matchesSearch = session.skillName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          session.description?.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = categoryFilter === 'all' || session.category === categoryFilter
-    return matchesSearch && matchesCategory
+    return isDemoOnly && matchesSearch && matchesCategory
   })
 
   const userStats = {
@@ -362,9 +363,7 @@ const SkillExchange = () => {
                     <div className="mb-4">
                       <div className="flex items-center gap-2 mb-2">
                         <h4 className="text-lg font-bold text-gray-900">{session.skillName}</h4>
-                        {session.isDemoCourse && (
-                          <Badge className="bg-orange-100 text-orange-700 text-xs">🎓 Demo</Badge>
-                        )}
+                        <Badge className="bg-orange-100 text-orange-700 text-xs">🎓 Demo</Badge>
                       </div>
                       <Badge variant="primary" className="mb-2">{session.skillLevel}</Badge>
                       <Badge className="ml-2 bg-purple-100 text-purple-700">{session.category}</Badge>
@@ -387,11 +386,9 @@ const SkillExchange = () => {
                     <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                       <div className="flex flex-col">
                         <div className="text-2xl font-bold text-indigo-600">
-                          {session.isDemoCourse ? '25' : session.coinsCost} 💎
+                          25 💎
                         </div>
-                        {session.isDemoCourse && (
-                          <p className="text-xs text-orange-600 font-semibold mt-1">Fixed for all demos</p>
-                        )}
+                        <p className="text-xs text-orange-600 font-semibold mt-1">Fixed demo price</p>
                       </div>
                       <div className="flex gap-2">
                         {session.teacherId === user?.id && (
@@ -413,7 +410,7 @@ const SkillExchange = () => {
                           {session.teacherId === user?.id ? 'Your Session' : (
                             <>
                               <FiPlay size={16} />
-                              {session.isDemoCourse ? 'Join Demo' : 'Book'}
+                              Join Demo
                             </>
                           )}
                         </Button>
@@ -588,42 +585,11 @@ const SkillExchange = () => {
       {/* Create Session Modal */}
       <Modal isOpen={showCreateSession} onClose={() => setShowCreateSession(false)} title="🎓 Create Teaching Session">
         <div className="space-y-4">
-          <div className="flex gap-2 mb-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!newSession.isDemoCourse}
-                onChange={(e) => setNewSession({ ...newSession, isDemoCourse: !e.target.checked, coinsCost: e.target.checked ? 100 : 25 })}
-                className="rounded"
-              />
-              <span className="text-sm font-semibold text-gray-700">Full Course</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={newSession.isDemoCourse}
-                onChange={(e) => setNewSession({ ...newSession, isDemoCourse: e.target.checked, coinsCost: e.target.checked ? 25 : 100 })}
-                className="rounded"
-              />
-              <span className="text-sm font-semibold text-gray-700">Demo Class</span>
-            </label>
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+            <p className="text-sm text-orange-800">
+              🎓 <strong>Demo Class Only:</strong> All sessions are demo classes with a fixed cost of 25 coins.
+            </p>
           </div>
-
-          {newSession.isDemoCourse && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-              <p className="text-sm text-orange-800">
-                🎓 <strong>Demo Class:</strong> Fixed 25 coins. Students must complete this before booking your full course.
-              </p>
-            </div>
-          )}
-          
-          {!newSession.isDemoCourse && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                💼 <strong>Full Course:</strong> Students can only book this after completing a demo class with you.
-              </p>
-            </div>
-          )}
 
           <Input
             label="Skill Name *"
@@ -678,88 +644,55 @@ const SkillExchange = () => {
               onChange={(e) => setNewSession({ ...newSession, duration: parseInt(e.target.value) })}
             />
             <Input
-              label={newSession.isDemoCourse ? "Demo Cost" : "Coins Cost"}
+              label="Demo Cost"
               type="number"
               value={newSession.coinsCost}
-              onChange={(e) => setNewSession({ ...newSession, coinsCost: newSession.isDemoCourse ? 25 : parseInt(e.target.value) })}
-              disabled={newSession.isDemoCourse}
+              onChange={() => setNewSession({ ...newSession, coinsCost: 25 })}
+              disabled
             />
           </div>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            {newSession.isDemoCourse ? (
-              <p className="text-sm text-yellow-800">
-                🎓 <strong>Demo Class (Fixed 25 coins):</strong> Students pay 25 coins and MUST complete this demo before they can book your full course.
-              </p>
-            ) : (
-              <p className="text-sm text-yellow-800">
-                💡 <strong>Tip:</strong> You'll earn {newSession.coinsCost} + 10% bonus = {newSession.coinsCost + Math.floor(newSession.coinsCost * 0.1)} coins per session! (Students need demo completion first)
-              </p>
-            )}
+            <p className="text-sm text-yellow-800">
+              🎓 <strong>Demo Class (Fixed 25 coins):</strong> Students pay 25 coins to join your demo session.
+            </p>
           </div>
 
           <Button variant="primary" className="w-full" onClick={handleCreateSession}>
-            {newSession.isDemoCourse ? '🎓 Create Demo Class' : 'Create Session & Start Earning'}
+            🎓 Create Demo Class
           </Button>
         </div>
       </Modal>
 
       {/* Book Session Modal */}
-      <Modal isOpen={showBookModal} onClose={() => setShowBookModal(false)} title={selectedSession?.isDemoCourse ? "🎓 Join Demo Class" : "📅 Book Session"}>
+      <Modal isOpen={showBookModal} onClose={() => setShowBookModal(false)} title="🎓 Join Demo Class">
         {selectedSession && (
           <div className="space-y-4">
             <div className="text-center">
               <h3 className="text-xl font-bold text-gray-900 mb-2">
                 {selectedSession.skillName}
-                {selectedSession.isDemoCourse && <span className="text-sm text-orange-600 font-semibold ml-2">Demo</span>}
+                <span className="text-sm text-orange-600 font-semibold ml-2">Demo</span>
               </h3>
               <p className="text-gray-600">{selectedSession.description}</p>
               <div className="mt-4 p-4 bg-indigo-50 rounded-lg">
                 <div className="text-3xl font-bold text-indigo-600 mb-2">
-                  {selectedSession.isDemoCourse ? '25' : selectedSession.coinsCost} 💎
+                  25 💎
                 </div>
                 <p className="text-sm text-gray-600">{selectedSession.duration} minutes session</p>
-                {selectedSession.isDemoCourse && (
-                  <p className="text-xs text-orange-600 font-semibold mt-2">Fixed demo price • Coins deducted when session ends</p>
-                )}
+                <p className="text-xs text-orange-600 font-semibold mt-2">Fixed demo price • Coins deducted when session ends</p>
               </div>
             </div>
 
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              {selectedSession.isDemoCourse ? (
-                <>
-                  <p className="text-sm text-yellow-800 font-semibold">
-                    🎓 Demo Class (25 coins fixed)
-                  </p>
-                  <p className="text-sm text-yellow-800 mt-2">
-                    ⚠️ <strong>25 coins will be deducted immediately</strong> when you join
-                  </p>
-                  <p className="text-sm text-yellow-800 mt-2">
-                    💡 No refunds if you leave early - coins are non-refundable
-                  </p>
-                  <p className="text-sm text-yellow-800 mt-2">
-                    📈 Love it? You can upgrade to the full course!
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-yellow-800 font-semibold">
-                    ⚠️ Full Course Booking
-                  </p>
-                  <p className="text-sm text-blue-800 font-semibold mt-2 bg-blue-100 p-2 rounded">
-                    📋 Requirement: You must complete a demo class first!
-                  </p>
-                  <p className="text-sm text-yellow-800 mt-2">
-                    💰 <strong>{selectedSession.coinsCost} coins will be deducted immediately</strong> when you join
-                  </p>
-                  <p className="text-sm text-yellow-800">
-                    Your new balance: {userStats.coinsBalance - selectedSession.coinsCost} coins
-                  </p>
-                  <p className="text-sm text-yellow-800 mt-2">
-                    💡 No refunds if you leave early - discuss with teacher for reschedule
-                  </p>
-                </>
-              )}
+              <p className="text-sm text-yellow-800 font-semibold">
+                🎓 Demo Class (25 coins fixed)
+              </p>
+              <p className="text-sm text-yellow-800 mt-2">
+                ⚠️ <strong>25 coins will be deducted immediately</strong> when you join
+              </p>
+              <p className="text-sm text-yellow-800 mt-2">
+                💡 No refunds if you leave early - coins are non-refundable
+              </p>
             </div>
 
             <div className="flex gap-3">
@@ -770,9 +703,9 @@ const SkillExchange = () => {
                 variant="primary" 
                 className="flex-1" 
                 onClick={confirmBooking}
-                disabled={!selectedSession.isDemoCourse && userStats.coinsBalance < selectedSession.coinsCost}
+                disabled={userStats.coinsBalance < 25}
               >
-                {!selectedSession.isDemoCourse && userStats.coinsBalance < selectedSession.coinsCost ? 'Insufficient Coins' : selectedSession.isDemoCourse ? '🎓 Join Demo' : 'Confirm Booking'}
+                {userStats.coinsBalance < 25 ? 'Insufficient Coins' : '🎓 Join Demo'}
               </Button>
             </div>
           </div>
