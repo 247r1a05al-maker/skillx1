@@ -20,6 +20,9 @@ const SKILL_CATEGORIES = [
   'General'
 ]
 
+const CREATE_GROUP_COST = 100
+const JOIN_GROUP_COST = 10
+
 const Groups = () => {
   const { user: authUser } = useAuthStore()
   const navigate = useNavigate()
@@ -150,7 +153,7 @@ const Groups = () => {
         setUserGroups([...userGroups, result.groupId])
         setCreateForm({ name: '', description: '', skillCategory: 'General' })
         setShowCreateModal(false)
-        alert('Group created successfully!')
+        alert(`Group created successfully! ${CREATE_GROUP_COST} coins deducted.`)
       } else {
         setCreateError(result.error || 'Failed to create group')
       }
@@ -170,9 +173,13 @@ const Groups = () => {
       const result = await firebaseRealtime.joinGroup(groupId, userId)
 
       if (result.success) {
-        // Update userGroups state to include the new group
-        setUserGroups([...userGroups, groupId])
-        alert('Joined group successfully!')
+        if (result.message === 'Already a member') {
+          alert('You are already a member of this group.')
+        } else {
+          // Update userGroups state to include the new group
+          setUserGroups((prev) => (prev.includes(groupId) ? prev : [...prev, groupId]))
+          alert(`Joined group successfully! ${JOIN_GROUP_COST} coins deducted.`)
+        }
       } else {
         alert('Error joining group: ' + result.error)
       }
@@ -257,6 +264,7 @@ const Groups = () => {
                   </span>
                 </div>
                 <p className="text-gray-600 text-lg">Connect with communities, learn together, and grow</p>
+                <p className="text-sm text-amber-700 mt-1 font-medium">Create group: {CREATE_GROUP_COST} coins • Join group: {JOIN_GROUP_COST} coins</p>
               </div>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button
@@ -559,7 +567,7 @@ const Groups = () => {
                                     disabled={joiningGroupId === group.id}
                                     className="w-full flex items-center justify-center gap-2"
                                   >
-                                    <FiPlus size={16} /> {joiningGroupId === group.id ? 'Joining...' : 'Join Group'}
+                                    <FiPlus size={16} /> {joiningGroupId === group.id ? 'Joining...' : `Join Group (${JOIN_GROUP_COST} coins)`}
                                   </Button>
                                 </div>
                               </Card>
@@ -630,6 +638,9 @@ const Groups = () => {
               </div>
 
               <form onSubmit={handleCreateGroup} className="space-y-4">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm font-medium">
+                  Creating a group costs {CREATE_GROUP_COST} coins.
+                </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Group Name *
@@ -696,7 +707,7 @@ const Groups = () => {
                     disabled={isCreating}
                     className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition disabled:opacity-50"
                   >
-                    {isCreating ? 'Creating...' : 'Create'}
+                    {isCreating ? 'Creating...' : `Create (${CREATE_GROUP_COST} coins)`}
                   </button>
                 </div>
               </form>

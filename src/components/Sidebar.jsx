@@ -32,7 +32,7 @@ const Sidebar = () => {
   const menuItems = [
     { icon: FiHome, label: 'Dashboard', path: '/dashboard' },
     { icon: FiSearch, label: 'Explore', path: '/explore' },
-    { icon: FiMessageSquare, label: 'Skill Exchange', path: '/exchange' },
+    // { icon: FiMessageSquare, label: 'Skill Exchange', path: '/exchange' }, // HIDDEN - Coming next year
     { icon: FiMessageSquare, label: 'Inbox', path: '/inbox' },
     { icon: FiUsers, label: 'Groups', path: '/groups' },
     { icon: FiCommand, label: 'Community', path: '/community' },

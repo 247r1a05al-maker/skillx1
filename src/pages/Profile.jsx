@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { FiEdit2, FiMessageSquare, FiUserPlus, FiAward, FiUsers, FiX, FiCheck, FiArrowLeft, FiTrash2 } from 'react-icons/fi'
+import { FiEdit2, FiMessageSquare, FiUserPlus, FiAward, FiUsers, FiX, FiCheck, FiArrowLeft, FiTrash2, FiZap } from 'react-icons/fi'
 import { useAuthStore } from '../store'
 import { userProfileService } from '../services/user-profile'
 import firebaseRealtime from '../services/firebase-realtime'
@@ -34,6 +34,7 @@ const Profile = () => {
   const [earnedBadges, setEarnedBadges] = useState([])
   const [inProgressBadges, setInProgressBadges] = useState([])
   const [streakData, setStreakData] = useState(null)
+  const [recentActivity, setRecentActivity] = useState([])
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
@@ -69,8 +70,9 @@ const Profile = () => {
         if (paramUserId && paramUserId !== currentUserId) {
           const unsubscribe = firebaseRealtime.subscribeToCurrentUser(paramUserId, (userData) => {
             if (userData) {
-              // Ensure user object has id field
+              // Ensure user object has id field and hideEmail is included
               const userWithId = { ...userData, id: paramUserId }
+              console.log('📋 Loaded other user profile:', { name: userWithId.name, hideEmail: userWithId.hideEmail })
               setUser(userWithId)
               setIsOwnProfile(false)
               setAvatarPreview(userData.avatar || '')
@@ -215,6 +217,24 @@ const Profile = () => {
     }
 
     loadStreakData()
+  }, [user?.id])
+
+  // Subscribe to recent activity (achievements only - no coin transactions)
+  useEffect(() => {
+    if (!user?.id) return
+
+    console.log('🔄 Setting up activity subscription for user:', user.id)
+    const unsubscribeActivity = firebaseRealtime.subscribeToUserRecentActivity(user.id, (activities) => {
+      // Filter out coin-only transactions, keep only real achievements
+      const achievements = activities.filter(activity => activity.type !== 'earned_coins')
+      console.log('📈 Recent achievements updated:', achievements.length, 'items')
+      setRecentActivity(achievements)
+    })
+
+    return () => {
+      console.log('🛑 Cleaning up activity subscription')
+      unsubscribeActivity?.()
+    }
   }, [user?.id])
 
   // Calculate badges when user data or counts change
@@ -637,7 +657,7 @@ const Profile = () => {
                       />
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-gray-900 truncate">{following.name}</p>
-                        <p className="text-xs text-gray-500 truncate">{following.email}</p>
+                        {!following.hideEmail && <p className="text-xs text-gray-500 truncate">{following.email}</p>}
                       </div>
                     </div>
                     <button
@@ -689,7 +709,7 @@ const Profile = () => {
           <div className="flex items-center justify-center gap-2 mb-2">
             <h1 className="text-3xl font-bold text-gray-900">{user?.name || 'User'}</h1>
           </div>
-          <p className="text-gray-600 mb-2">{user?.email}</p>
+          {(isOwnProfile || !user?.hideEmail) && <p className="text-gray-600 mb-2">{user?.email}</p>}
           <p className="text-gray-700 mb-6">{user?.bio || 'No bio yet'}</p>
 
           {/* Stats */}
@@ -771,15 +791,15 @@ const Profile = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <DayStreakWidget />
           
-          <Card className="bg-gradient-to-br from-pink-500 to-rose-600 text-white">
-            <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+          <Card className="bg-gradient-to-br from-pink-500 to-rose-600">
+            <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-black">
               <FiUsers size={20} /> Community Rank
             </h3>
             <div className="flex items-end gap-2 mb-2">
-              <span className="text-4xl font-bold">#12</span>
-              <span className="text-pink-100 mb-1">of 250</span>
+              <span className="text-4xl font-bold text-black">#12</span>
+              <span className="text-black mb-1">of 250</span>
             </div>
-            <p className="text-sm text-pink-100">Top 5% contributor 🏆</p>
+            <p className="text-sm text-black">Top 5% contributor 🏆</p>
           </Card>
         </div>
       </motion.div>
@@ -787,38 +807,46 @@ const Profile = () => {
       {/* Recent Activity Timeline */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
         <Card>
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="text-2xl">⚡</span> Recent Activity
-          </h2>
-          <div className="space-y-4">
-            <div className="flex gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg">✓</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900">Completed skill exchange session</p>
-                <p className="text-sm text-gray-500">2 hours ago</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg">💬</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900">Posted in Community</p>
-                <p className="text-sm text-gray-500">5 hours ago</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg">🎯</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900">Earned 20 coins</p>
-                <p className="text-sm text-gray-500">Yesterday</p>
-              </div>
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <FiZap className="text-indigo-600" size={22} />
+              Recent Activity
+            </h2>
+            <Badge variant="secondary">{recentActivity.length} achievements</Badge>
           </div>
+          
+          {recentActivity.length > 0 ? (
+            <div className="space-y-3">
+              {recentActivity.map((activity, idx) => (
+                <motion.div
+                  key={activity.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="flex items-start gap-4 p-4 rounded-lg bg-gradient-to-r from-white to-gray-50 border border-gray-100 hover:shadow-sm transition"
+                >
+                  <div className="text-2xl mt-1">{activity.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900">{activity.title}</h3>
+                    <p className="text-sm text-gray-600 mt-0.5">{activity.description}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(activity.timestamp).toLocaleString([], { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              <FiZap size={48} className="mx-auto mb-2 text-gray-300" />
+              <p>No recent achievements yet. Start exploring and connecting!</p>
+            </div>
+          )}
         </Card>
       </motion.div>
 

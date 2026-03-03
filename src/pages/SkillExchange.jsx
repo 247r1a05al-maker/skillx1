@@ -9,7 +9,7 @@ import { useAuthStore } from '../store'
 import { useToast } from '../hooks'
 
 const SkillExchange = () => {
-  const { user } = useAuthStore()
+  const { user, setUser } = useAuthStore()
   const { success, error: showError } = useToast()
   const [activeTab, setActiveTab] = useState('marketplace') // marketplace, myTeaching, myLearning, leaderboard
   const [teachingSessions, setTeachingSessions] = useState([])
@@ -18,6 +18,7 @@ const SkillExchange = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [showCreateSession, setShowCreateSession] = useState(false)
+  const [showStoreModal, setShowStoreModal] = useState(false)
   const [showBookModal, setShowBookModal] = useState(false)
   const [selectedSession, setSelectedSession] = useState(null)
   const [showRateModal, setShowRateModal] = useState(false)
@@ -25,6 +26,9 @@ const SkillExchange = () => {
   const [showLiveSession, setShowLiveSession] = useState(false)
   const [currentSessionRoom, setCurrentSessionRoom] = useState(null)
   const [currentSessionTeacher, setCurrentSessionTeacher] = useState(null)
+  const [showTeacherProfile, setShowTeacherProfile] = useState(false)
+  const [teacherProfileData, setTeacherProfileData] = useState(null)
+  const [isProfileLoading, setIsProfileLoading] = useState(false)
   
   const [newSession, setNewSession] = useState({
     skillName: '',
@@ -85,6 +89,11 @@ const SkillExchange = () => {
       return
     }
 
+    if ((user?.demoSlots || 0) < 1) {
+      showError('You need a Demo Pass to create a demo class. Buy one from the Store.')
+      return
+    }
+
     try {
       await firebaseRealtimeService.createTeachingSession(user.id, newSession)
       success('Teaching session created successfully!')
@@ -102,6 +111,39 @@ const SkillExchange = () => {
       })
     } catch (err) {
       showError(err.message || 'Failed to create session')
+    }
+  }
+
+  const handleBuyDemoPass = async () => {
+    try {
+      const result = await firebaseRealtimeService.purchaseDemoPass(user.id)
+      if (!result.success) {
+        showError(result.error || 'Failed to purchase Demo Pass')
+        return
+      }
+
+      const refreshed = await firebaseRealtimeService.refreshUserData(user.id)
+      if (refreshed) {
+        setUser(refreshed)
+      }
+
+      success('✅ Demo Pass purchased! 2 demo slots added.')
+      setShowStoreModal(false)
+    } catch (err) {
+      showError(err.message || 'Failed to purchase Demo Pass')
+    }
+  }
+
+  const handleViewTeacherProfile = async (teacherId) => {
+    try {
+      setIsProfileLoading(true)
+      setShowTeacherProfile(true)
+      const profile = await firebaseRealtimeService.getTeacherProfile(teacherId)
+      setTeacherProfileData(profile)
+    } catch (err) {
+      showError('Failed to load teacher profile')
+    } finally {
+      setIsProfileLoading(false)
     }
   }
 
@@ -131,7 +173,7 @@ const SkillExchange = () => {
 
       const selectedSlot = new Date().toISOString()
       
-      // Book session (coins deducted here)
+      // Book session (coins deducted after demo ends)
       const booking = await firebaseRealtimeService.bookSession(selectedSession.id, user.id, selectedSlot)
       
       // Create live session room
@@ -155,8 +197,8 @@ const SkillExchange = () => {
       setSelectedSession(null)
       setShowLiveSession(true)
       
-      // ⚠️ Alert user that coins are deducted immediately
-      success(`✅ Joining ${selectedSession.isDemoCourse ? 'demo' : 'session'}... (${booking.coinsCost} coins deducted)`)
+      // Inform user about post-demo deduction
+      success(`✅ Joining demo... (${booking.coinsCost} coins will be deducted after the demo ends)`)
       
       // Log booking event
       await firebaseRealtimeService.logSessionEvent(user.id, 'demo_joined', {
@@ -167,12 +209,6 @@ const SkillExchange = () => {
     } catch (err) {
       showError(err.message || 'Failed to book session')
     }
-  }
-
-  const handleContinueCourse = async () => {
-    // After demo, user can continue to full course
-    setShowLiveSession(false)
-    success('Continue to full course feature coming soon!')
   }
 
   const handleDeleteSession = async (sessionId) => {
@@ -192,28 +228,9 @@ const SkillExchange = () => {
 
   const handleCompleteSession = async (booking) => {
     try {
-      await firebaseRealtimeService.completeSession(booking.id, 5)
-      
-      // Issue certificate to the learner (participant)
-      const participantId = booking.participantId || booking.userId
-      const teacherId = booking.teacherId || booking.expertId
-      const currentUserId = user?.uid || user?.id
-      
-      if (participantId && participantId !== currentUserId) {
-        // If current user is teacher, issue certificate to participant
-        await firebaseRealtimeService.issueCertificate({
-          userId: participantId,
-          skillName: booking.skillName || booking.title,
-          issuerName: user?.name || user?.displayName || 'Instructor',
-          sessionDetails: {
-            sessionId: booking.id,
-            duration: booking.duration || '1 hour',
-            completedAt: new Date().toISOString(),
-          },
-        })
-      }
-      
-      success(`Session completed! You earned ${booking.coinsCost + Math.floor(booking.coinsCost * 0.1)} coins! Certificate issued.`)
+      const result = await firebaseRealtimeService.completeSession(booking.id, 5)
+      const charged = result?.coinsCharged || booking.coinsCost || 25
+      success(`Demo completed! ${charged} coins deducted from the learner.`)
     } catch (err) {
       showError(err.message || 'Failed to complete session')
     }
@@ -240,13 +257,29 @@ const SkillExchange = () => {
     return isDemoOnly && matchesSearch && matchesCategory
   })
 
+  const scoreSession = (session) => {
+    const rating = session.teacher?.rating || session.rating || 0
+    const profileStrength = session.teacher?.profileStrength || 0
+    const ratingScore = Math.min(5, rating) * 20
+    return (ratingScore * 0.6) + (profileStrength * 0.4)
+  }
+
+  const rankedSessions = [...filteredSessions].sort((a, b) => scoreSession(b) - scoreSession(a))
+
   const userStats = {
     // INSTANT: Use cached coins (no 0 flash!)
     coinsBalance: user?.coins || 0,
     skillsTaught: user?.skillsTaught || 0,
     skillsLearned: user?.skillsLearned || 0,
     totalEarned: user?.totalCoinsEarned || 0,
+    demoSlots: user?.demoSlots || 0,
+    profileStrength: user?.profileStrength || 0,
   }
+
+  const teacherProfile = teacherProfileData?.profile || {}
+  const teacherLinks = teacherProfileData?.links || {}
+  const teacherMedia = teacherProfileData?.media || {}
+  const demoVideos = Array.isArray(teacherMedia?.demoVideos) ? teacherMedia.demoVideos : []
 
   return (
     <div className="space-y-6">
@@ -276,6 +309,11 @@ const SkillExchange = () => {
             <FiAward className="text-purple-600 mx-auto mb-2" size={24} />
             <div className="text-2xl font-bold text-purple-700">{userStats.skillsLearned}</div>
             <div className="text-sm text-purple-600">Skills Learned</div>
+          </Card>
+          <Card className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100">
+            <FiPlay className="text-orange-600 mx-auto mb-2" size={24} />
+            <div className="text-2xl font-bold text-orange-700">{userStats.demoSlots}</div>
+            <div className="text-sm text-orange-600">Demo Slots</div>
           </Card>
         </div>
       </motion.div>
@@ -328,13 +366,16 @@ const SkillExchange = () => {
               <Button variant="primary" onClick={() => setShowCreateSession(true)} className="flex items-center gap-2">
                 <FiPlus /> Teach a Skill
               </Button>
+              <Button variant="secondary" onClick={() => setShowStoreModal(true)} className="flex items-center gap-2">
+                🛒 Store
+              </Button>
             </div>
           </Card>
 
           {/* Teaching Sessions Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <AnimatePresence>
-              {filteredSessions.map((session) => (
+              {rankedSessions.map((session) => (
                 <motion.div
                   key={session.id}
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -356,6 +397,9 @@ const SkillExchange = () => {
                           <span>{session.rating?.toFixed(1) || '5.0'}</span>
                           <span className="text-gray-400">({session.totalReviews || 0})</span>
                         </div>
+                        {session.teacher?.verificationStatus === 'verified' && (
+                          <div className="text-xs text-green-700 bg-green-100 inline-block px-2 py-0.5 rounded mt-1">✅ Verified</div>
+                        )}
                       </div>
                     </div>
 
@@ -401,6 +445,14 @@ const SkillExchange = () => {
                           </button>
                         )}
                         <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleViewTeacherProfile(session.teacherId)}
+                          className="flex items-center gap-1"
+                        >
+                          View Profile
+                        </Button>
+                        <Button
                           variant="primary"
                           size="sm"
                           onClick={() => handleBookSession(session)}
@@ -436,15 +488,66 @@ const SkillExchange = () => {
 
       {/* My Teaching Tab */}
       {activeTab === 'myTeaching' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          {/* Your Created Demo Sessions */}
           <Card>
-            <h2 className="text-xl font-bold text-gray-900 mb-4">📚 My Teaching Sessions</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">🎬 Your Demo Sessions</h2>
+              <Button variant="primary" size="sm" onClick={() => setShowCreateSession(true)}>
+                <FiPlus size={16} className="mr-2" /> Create New
+              </Button>
+            </div>
+            {teachingSessions.filter(s => s.teacherId === user?.id).length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500 mb-4">No demo sessions created yet</p>
+                <Button variant="primary" onClick={() => setShowCreateSession(true)}>
+                  Create Your First Demo
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {teachingSessions.filter(s => s.teacherId === user?.id).map((session) => {
+                  const sessionBookings = myBookings.asTeacher.filter(b => b.sessionId === session.id)
+                  return (
+                    <div key={session.id} className="p-4 border-2 border-orange-200 rounded-lg bg-gradient-to-r from-orange-50 to-amber-50 hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-900">{session.skillName}</h3>
+                            <Badge variant="info" className="text-xs">Demo</Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">{session.description}</p>
+                          <div className="flex gap-4 mt-2 text-sm text-gray-500">
+                            <span>⏱️ {session.duration} min</span>
+                            <span>👥 {sessionBookings.length} student{sessionBookings.length !== 1 ? 's' : ''}</span>
+                            <span>💎 {session.coinsCost} coins</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleDeleteSession(session.id)}
+                            className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                            title="Delete session"
+                          >
+                            <FiTrash2 size={18} />
+                          </motion.button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
+
+          {/* Student Bookings */}
+          <Card>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">📚 Student Bookings</h2>
             {myBookings.asTeacher.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">You don't have any teaching sessions yet</p>
-                <Button variant="primary" className="mt-4" onClick={() => setShowCreateSession(true)}>
-                  Start Teaching
-                </Button>
+                <p className="text-gray-500">No students have booked your demos yet</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -585,6 +688,41 @@ const SkillExchange = () => {
       {/* Create Session Modal */}
       <Modal isOpen={showCreateSession} onClose={() => setShowCreateSession(false)} title="🎓 Create Teaching Session">
         <div className="space-y-4">
+          {userStats.demoSlots < 1 && (
+            <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+              <p className="text-sm font-semibold text-red-800">❌ Missing Demo Pass</p>
+              <p className="text-sm text-red-700 mt-1">You need a Demo Pass to create a demo class. Buy one from the Store.</p>
+            </div>
+          )}
+
+          {userStats.profileStrength < 40 && (
+            <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+              <p className="text-sm font-semibold text-red-800">❌ Incomplete Teacher Profile</p>
+              <p className="text-sm text-red-700 mt-1">
+                Your profile strength is <strong>{userStats.profileStrength}/100</strong>. You need at least <strong>40/100</strong> to create demos.
+              </p>
+              <p className="text-sm text-red-600 mt-2 font-medium">Required:</p>
+              <ul className="text-sm text-red-600 mt-1 ml-4 list-disc">
+                <li>Bio (20 points) ✓</li>
+                <li>Experience (15 points) ✓</li>
+                <li>Expertise (15 points) ✓</li>
+              </ul>
+              <p className="text-sm text-red-700 mt-2">Go to Settings → Teacher Profile to complete your profile.</p>
+            </div>
+          )}
+
+          {userStats.demoSlots >= 1 && userStats.profileStrength >= 40 && (
+            <div className="bg-green-50 border border-green-300 rounded-lg p-4">
+              <p className="text-sm font-semibold text-green-800">✅ Ready to Create Demo</p>
+              <p className="text-sm text-green-700 mt-1">Profile strength: <strong>{userStats.profileStrength}/100</strong> | Demo slots: <strong>{userStats.demoSlots}</strong></p>
+            </div>
+          )}
+
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+            <p className="text-sm text-orange-800">
+              🎟️ <strong>Demo Slots Available:</strong> {userStats.demoSlots}
+            </p>
+          </div>
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
             <p className="text-sm text-orange-800">
               🎓 <strong>Demo Class Only:</strong> All sessions are demo classes with a fixed cost of 25 coins.
@@ -658,10 +796,84 @@ const SkillExchange = () => {
             </p>
           </div>
 
-          <Button variant="primary" className="w-full" onClick={handleCreateSession}>
+          <Button variant="primary" className="w-full" onClick={handleCreateSession} disabled={userStats.demoSlots < 1 || userStats.profileStrength < 40}>
             🎓 Create Demo Class
           </Button>
         </div>
+      </Modal>
+
+      {/* Store Modal */}
+      <Modal isOpen={showStoreModal} onClose={() => setShowStoreModal(false)} title="🛒 Demo Pass Store">
+        <div className="space-y-4">
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <p className="text-sm text-indigo-800 font-semibold">🎟️ Demo Pass (₹99)</p>
+            <p className="text-sm text-indigo-700 mt-2">Each Demo Pass gives <strong>2 demo slots</strong>.</p>
+            <p className="text-sm text-indigo-700 mt-2">Demo slots are required to create demo classes.</p>
+          </div>
+          <Button variant="primary" className="w-full" onClick={handleBuyDemoPass}>
+            Buy Demo Pass (₹99)
+          </Button>
+          <p className="text-xs text-gray-500 text-center">Mock purchase only - no real payment processed.</p>
+        </div>
+      </Modal>
+
+      {/* Teacher Profile Modal */}
+      <Modal isOpen={showTeacherProfile} onClose={() => setShowTeacherProfile(false)} title="👤 Teacher Profile">
+        {isProfileLoading ? (
+          <div className="text-center py-6 text-gray-500">Loading profile...</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <img
+                src={teacherProfile.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${teacherProfile.id || 'teacher'}`}
+                alt={teacherProfile.displayName || 'Teacher'}
+                className="w-14 h-14 rounded-full"
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-gray-900">{teacherProfile.displayName || 'Teacher'}</h3>
+                  {teacherProfile.verificationStatus === 'verified' && (
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">✅ Verified</span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-600">Rating: {teacherProfile.rating?.toFixed(1) || '5.0'}</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm text-gray-700"><strong>Bio:</strong> {teacherProfile.bio || 'No bio added yet.'}</p>
+              <p className="text-sm text-gray-700 mt-2"><strong>Experience:</strong> {teacherProfile.experience || 'Not specified'}</p>
+              <p className="text-sm text-gray-700 mt-2"><strong>Expertise:</strong> {teacherProfile.expertise || 'Not specified'}</p>
+              <p className="text-sm text-gray-700 mt-2"><strong>Profile Strength:</strong> {teacherProfile.profileStrength || 0}/100</p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-gray-900">Social Links</p>
+              <div className="flex flex-col gap-2 text-sm">
+                {teacherLinks.youtube?.url && <a href={teacherLinks.youtube.url} target="_blank" rel="noreferrer" className="text-blue-600">YouTube</a>}
+                {teacherLinks.instagram?.url && <a href={teacherLinks.instagram.url} target="_blank" rel="noreferrer" className="text-pink-600">Instagram</a>}
+                {teacherLinks.linkedin?.url && <a href={teacherLinks.linkedin.url} target="_blank" rel="noreferrer" className="text-blue-700">LinkedIn</a>}
+                {teacherLinks.github?.url && <a href={teacherLinks.github.url} target="_blank" rel="noreferrer" className="text-gray-800">GitHub</a>}
+                {!teacherLinks.youtube?.url && !teacherLinks.instagram?.url && !teacherLinks.linkedin?.url && !teacherLinks.github?.url && (
+                  <p className="text-gray-500">No social links provided.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-gray-900">Demo Videos</p>
+              {demoVideos.length > 0 ? (
+                <div className="space-y-2">
+                  {demoVideos.map((url, idx) => (
+                    <a key={idx} href={url} target="_blank" rel="noreferrer" className="text-blue-600 text-sm">{url}</a>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No demo videos added yet.</p>
+              )}
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Book Session Modal */}
@@ -674,6 +886,13 @@ const SkillExchange = () => {
                 <span className="text-sm text-orange-600 font-semibold ml-2">Demo</span>
               </h3>
               <p className="text-gray-600">{selectedSession.description}</p>
+              <button
+                className="text-sm text-blue-600 font-semibold mt-2"
+                onClick={() => handleViewTeacherProfile(selectedSession.teacherId)}
+                type="button"
+              >
+                View Teacher Profile
+              </button>
               <div className="mt-4 p-4 bg-indigo-50 rounded-lg">
                 <div className="text-3xl font-bold text-indigo-600 mb-2">
                   25 💎
@@ -688,7 +907,7 @@ const SkillExchange = () => {
                 🎓 Demo Class (25 coins fixed)
               </p>
               <p className="text-sm text-yellow-800 mt-2">
-                ⚠️ <strong>25 coins will be deducted immediately</strong> when you join
+                ⚠️ <strong>25 coins will be deducted after the demo ends</strong>
               </p>
               <p className="text-sm text-yellow-800 mt-2">
                 💡 No refunds if you leave early - coins are non-refundable

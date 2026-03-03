@@ -8,6 +8,8 @@ import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
 import EmojiPicker from 'emoji-picker-react'
 
+const EMOJI_GIF_UNLOCK_COST = 25
+
 const GroupChat = () => {
   const { groupId } = useParams()
   const navigate = useNavigate()
@@ -18,6 +20,8 @@ const GroupChat = () => {
   const [messageInput, setMessageInput] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [emojiGifUnlocked, setEmojiGifUnlocked] = useState(false)
+  const [isUnlockingEmojiGif, setIsUnlockingEmojiGif] = useState(false)
   const [showMembers, setShowMembers] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -74,6 +78,21 @@ const GroupChat = () => {
       setIsLoading(false)
     }
   }, [groupId, authUser])
+
+  // Load emoji/gif unlock status
+  useEffect(() => {
+    if (!authUser) return
+
+    const loadUnlockStatus = async () => {
+      const userId = authUser.uid || authUser.id
+      const result = await firebaseRealtime.getEmojiGifUnlockStatus(userId)
+      if (result.success) {
+        setEmojiGifUnlocked(!!result.unlocked)
+      }
+    }
+
+    loadUnlockStatus()
+  }, [authUser])
 
   // Send message
   const handleSendMessage = async () => {
@@ -208,6 +227,38 @@ const GroupChat = () => {
   // Handle emoji selection
   const handleEmojiClick = (emojiData) => {
     setMessageInput((prev) => prev + emojiData.emoji)
+  }
+
+  const ensureEmojiGifUnlocked = async () => {
+    if (emojiGifUnlocked) return true
+    if (!authUser || isUnlockingEmojiGif) return false
+
+    const shouldUnlock = window.confirm(
+      `Unlock Emojis + GIFs for ${EMOJI_GIF_UNLOCK_COST} coins?`
+    )
+
+    if (!shouldUnlock) return false
+
+    setIsUnlockingEmojiGif(true)
+    try {
+      const userId = authUser.uid || authUser.id
+      const result = await firebaseRealtime.unlockEmojiGifFeatures(userId)
+
+      if (result.success) {
+        setEmojiGifUnlocked(true)
+        alert(result.alreadyUnlocked ? 'Emojis & GIFs are already unlocked.' : `Unlocked Emojis & GIFs! ${EMOJI_GIF_UNLOCK_COST} coins deducted.`)
+        return true
+      }
+
+      alert(result.error || 'Unable to unlock Emojis & GIFs')
+      return false
+    } catch (error) {
+      console.error('Error unlocking emoji/gif features:', error)
+      alert('Unable to unlock Emojis & GIFs')
+      return false
+    } finally {
+      setIsUnlockingEmojiGif(false)
+    }
   }
 
   // Close emoji picker when clicking outside
@@ -384,16 +435,27 @@ const GroupChat = () => {
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 text-gray-900"
               />
 
               <div className="relative" ref={emojiPickerRef}>
                 <button
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  onClick={async () => {
+                    const unlocked = await ensureEmojiGifUnlocked()
+                    if (!unlocked) return
+                    setShowEmojiPicker(!showEmojiPicker)
+                  }}
                   className="p-2 hover:bg-gray-100 rounded-lg transition"
+                  title={emojiGifUnlocked ? 'Add emoji' : `Unlock Emojis + GIFs (${EMOJI_GIF_UNLOCK_COST} coins)`}
                 >
                   <FiSmile size={20} className="text-gray-600" />
                 </button>
+
+                {!emojiGifUnlocked && (
+                  <span className="absolute -top-2 -right-2 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold border border-amber-300">
+                    {EMOJI_GIF_UNLOCK_COST}
+                  </span>
+                )}
 
                 {showEmojiPicker && (
                   <div className="absolute bottom-full right-0 mb-2 z-50">

@@ -100,8 +100,8 @@ const LiveSession = ({
       const isTeacher = user.uid === booking.teacherId || user.id === booking.teacherId
       
       if (isTeacher) {
-        // ✅ COINS ALREADY DEDUCTED AT BOOKING TIME
-        // Just mark session as ended
+        // Complete demo and deduct coins after session ends
+        await firebaseRealtimeService.completeSession(booking.id, 5)
         await firebaseRealtimeService.endSessionRoom(roomId)
         
         // Log completion event
@@ -113,7 +113,7 @@ const LiveSession = ({
         })
       }
 
-      console.log(`✅ Session ended. Coins were deducted at booking time.`)
+      console.log('✅ Demo ended. Coins deducted after demo completion.')
       success('Session ended successfully')
       if (onSessionEnd) onSessionEnd()
     } catch (err) {
@@ -134,8 +134,8 @@ const LiveSession = ({
       
       await firebaseRealtimeService.leaveSessionRoom(roomId, user.uid || user.id)
       
-      // ⚠️ IMPORTANT: Coins already deducted at booking - no refunds
-      success('You left the session. (Coins already deducted at booking)')
+      // Coins are deducted after demo ends
+      success('You left the demo. (Coins will be deducted after the demo ends)')
       onClose()
     } catch (err) {
       showError('Error leaving session')
@@ -158,7 +158,7 @@ const LiveSession = ({
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-white">{session.skillName}</h2>
             <p className="text-indigo-200 text-sm">
-              {session.isDemoCourse ? '🎓 Demo Class' : '📚 Full Course'} • 
+              🎓 Demo Class • 
               {isTeacher ? ' You are teaching' : ' Live with ' + (teacherData?.name || 'Instructor')}
             </p>
           </div>

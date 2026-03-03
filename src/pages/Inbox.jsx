@@ -9,6 +9,8 @@ import firebaseRealtime from '../services/firebase-realtime'
 import EmojiPicker from 'emoji-picker-react'
 import Avatar from '../components/Avatar'
 
+const EMOJI_GIF_UNLOCK_COST = 25
+
 const Inbox = () => {
   const { user: authUser } = useAuthStore()
   const [searchParams] = useSearchParams()
@@ -21,6 +23,8 @@ const Inbox = () => {
   const [typingStatus, setTypingStatus] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
+  const [emojiGifUnlocked, setEmojiGifUnlocked] = useState(false)
+  const [isUnlockingEmojiGif, setIsUnlockingEmojiGif] = useState(false)
   const [showAvatarModal, setShowAvatarModal] = useState(false)
   const [avatarModalUrl, setAvatarModalUrl] = useState('')
   const messagesEndRef = useRef(null)
@@ -89,6 +93,21 @@ const Inbox = () => {
 
     return () => unsubscribe?.()
   }, [selectedConversation, authUser])
+
+  // Load emoji/gif unlock status
+  useEffect(() => {
+    if (!authUser) return
+
+    const loadUnlockStatus = async () => {
+      const userId = authUser.uid || authUser.id
+      const result = await firebaseRealtime.getEmojiGifUnlockStatus(userId)
+      if (result.success) {
+        setEmojiGifUnlocked(!!result.unlocked)
+      }
+    }
+
+    loadUnlockStatus()
+  }, [authUser])
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation || !authUser) return
@@ -161,6 +180,49 @@ const Inbox = () => {
     setShowAttachMenu(false)
   }
 
+  const ensureEmojiGifUnlocked = async (featureName = 'this feature') => {
+    if (emojiGifUnlocked) return true
+    if (!authUser || isUnlockingEmojiGif) return false
+
+    const shouldUnlock = window.confirm(
+      `Unlock Emojis + GIFs for ${EMOJI_GIF_UNLOCK_COST} coins to use ${featureName}?`
+    )
+
+    if (!shouldUnlock) return false
+
+    setIsUnlockingEmojiGif(true)
+    try {
+      const userId = authUser.uid || authUser.id
+      const result = await firebaseRealtime.unlockEmojiGifFeatures(userId)
+
+      if (result.success) {
+        setEmojiGifUnlocked(true)
+        alert(result.alreadyUnlocked ? 'Emojis & GIFs are already unlocked.' : `Unlocked Emojis & GIFs! ${EMOJI_GIF_UNLOCK_COST} coins deducted.`)
+        return true
+      }
+
+      alert(result.error || 'Unable to unlock Emojis & GIFs')
+      return false
+    } catch (error) {
+      console.error('Error unlocking emoji/gif features:', error)
+      alert('Unable to unlock Emojis & GIFs')
+      return false
+    } finally {
+      setIsUnlockingEmojiGif(false)
+    }
+  }
+
+  const handleGifAttach = async () => {
+    const unlocked = await ensureEmojiGifUnlocked('GIFs')
+    if (!unlocked) {
+      setShowAttachMenu(false)
+      return
+    }
+
+    alert('GIF feature - coming soon!')
+    setShowAttachMenu(false)
+  }
+
   // Delete conversation
   const handleDeleteConversation = async (conversationId) => {
     if (window.confirm('Are you sure you want to delete this conversation and all messages? This action cannot be undone.')) {
@@ -184,25 +246,25 @@ const Inbox = () => {
   }
 
   return (
-    <div className="w-full h-[calc(100vh-80px)] flex gap-6 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 p-6">
+    <div className="w-full h-[calc(100vh-80px)] flex gap-4 bg-gray-50 p-4">
       {/* Conversations List */}
-      <Card className="w-full lg:w-96 hidden lg:flex flex-col p-0 overflow-hidden shadow-2xl bg-white/95 backdrop-blur-md border border-white/20 rounded-2xl">
+      <Card className="w-full lg:w-80 hidden lg:flex flex-col p-0 overflow-hidden shadow-md bg-white border border-gray-200 rounded-lg">
         {/* Search */}
-        <div className="p-5 border-b border-white/10 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 sticky top-0 z-10 rounded-t-2xl">
+        <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
           <div className="relative group">
-            <FiSearch className="absolute left-3 top-3 text-white/80 group-focus-within:text-white transition" size={18} />
+            <FiSearch className="absolute left-3 top-3 text-gray-400 group-focus-within:text-gray-600 transition" size={18} />
             <input
               type="text"
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               autoFocus
-              className="w-full pl-10 pr-12 py-2.5 bg-white/95 backdrop-blur-sm border border-white/40 rounded-xl focus:outline-none focus:border-white focus:ring-2 focus:ring-white/60 transition font-medium placeholder:text-gray-400"
+              className="w-full pl-10 pr-12 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-300 transition font-medium placeholder:text-gray-400 text-gray-900"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-white/60 hover:text-white transition"
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition"
               >
                 ✕
               </button>
@@ -216,17 +278,17 @@ const Inbox = () => {
         </div>
 
         {/* Conversation List */}
-        <div className="flex-1 overflow-y-auto space-y-2 p-3 scrollbar-thin scrollbar-thumb-indigo-400 scrollbar-track-transparent hover:scrollbar-thumb-indigo-500">
+        <div className="flex-1 overflow-y-auto space-y-1 p-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
           {filteredConversations.length > 0 ? (
             filteredConversations.map((conv) => (
               <motion.div
                 key={conv.id}
-                whileHover={{ scale: 1.02, x: 4 }}
+                whileHover={{ x: 2 }}
                 whileTap={{ scale: 0.98 }}
-                className={`p-3 rounded-xl transition-all duration-300 cursor-pointer group ${
+                className={`p-3 rounded-lg transition-all duration-300 cursor-pointer group border ${
                   selectedConversation?.id === conv.id 
-                    ? 'bg-gradient-to-r from-indigo-500 to-blue-500 shadow-lg text-white' 
-                    : 'hover:bg-white/80 backdrop-blur-sm border border-white/10 hover:border-white/20'
+                    ? 'bg-indigo-50 border-indigo-300 shadow-sm' 
+                    : 'border-gray-100 hover:bg-gray-50 hover:border-gray-200'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -251,7 +313,7 @@ const Inbox = () => {
                       </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <p className={`font-bold text-sm ${selectedConversation?.id === conv.id ? 'text-white' : 'text-gray-900'}`}>{conv.name}</p>
+                          <p className={`font-semibold text-sm ${selectedConversation?.id === conv.id ? 'text-indigo-900' : 'text-gray-900'}`}>{conv.name}</p>
                           {conv.unread > 0 && (
                             <motion.span 
                               animate={{ scale: [1, 1.1, 1] }}
@@ -262,8 +324,8 @@ const Inbox = () => {
                             </motion.span>
                           )}
                         </div>
-                        <p className={`text-xs mt-1 line-clamp-1 ${selectedConversation?.id === conv.id ? 'text-white/80' : 'text-gray-600'}`}>{conv.lastMessage}</p>
-                        <p className={`text-xs mt-0.5 ${selectedConversation?.id === conv.id ? 'text-white/60' : 'text-gray-500'}`}>{conv.timestamp}</p>
+                        <p className={`text-xs mt-1 line-clamp-1 ${selectedConversation?.id === conv.id ? 'text-indigo-600' : 'text-gray-600'}`}>{conv.lastMessage}</p>
+                        <p className={`text-xs mt-0.5 ${selectedConversation?.id === conv.id ? 'text-indigo-500' : 'text-gray-500'}`}>{conv.timestamp}</p>
                       </div>
                     </div>
                   </button>
@@ -276,10 +338,10 @@ const Inbox = () => {
                       e.stopPropagation()
                       handleDeleteConversation(conv.id)
                     }}
-                    className={`p-2 opacity-0 group-hover:opacity-100 rounded-lg transition ${selectedConversation?.id === conv.id ? 'hover:bg-white/20' : 'hover:bg-red-100'}`}
+                    className={`p-2 opacity-0 group-hover:opacity-100 rounded-lg transition hover:bg-red-50`}
                     title="Delete conversation"
                   >
-                    <FiTrash2 size={16} className={selectedConversation?.id === conv.id ? 'text-white/80' : 'text-red-500'} />
+                    <FiTrash2 size={16} className="text-red-500" />
                   </motion.button>
                 </div>
               </motion.div>
@@ -323,15 +385,15 @@ const Inbox = () => {
 
       {/* Chat Area */}
       {selectedConversation ? (
-        <Card className="flex-1 p-0 overflow-hidden flex flex-col h-full shadow-2xl bg-white/95 backdrop-blur-md border border-white/20 rounded-2xl">
+        <Card className="flex-1 p-0 overflow-hidden flex flex-col h-full shadow-lg bg-white border border-gray-200 rounded-lg">
           {/* Chat Header */}
-          <motion.div layoutId="chatHeader" className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 sticky top-0 text-white shadow-lg rounded-t-2xl">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white sticky top-0 text-gray-900 shadow-sm">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setSelectedConversation(null)}
                 className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition"
               >
-                <FiArrowLeft size={20} />
+                <FiArrowLeft size={20} className="text-gray-700" />
               </button>
               <button
                 onClick={() => {
@@ -347,20 +409,16 @@ const Inbox = () => {
                 )}
               </button>
               <div>
-                <p className="font-bold text-lg text-white">{selectedConversation.name}</p>
-                <motion.p 
-                  animate={{ opacity: [0.6, 1, 0.6] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className={`text-xs ${isSelectedOnline ? 'text-green-200 font-semibold' : 'text-white/60'}`}
-                >
+                <p className="font-semibold text-gray-900">{selectedConversation.name}</p>
+                <p className={`text-xs ${isSelectedOnline ? 'text-green-600 font-semibold' : 'text-gray-500'}`}>
                   {isSelectedOnline ? '● Online' : 'Offline'}
-                </motion.p>
+                </p>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-slate-50 to-white">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white">
             {isLoadingMessages ? (
               <div className="flex items-center justify-center h-full">
                 <motion.div
@@ -444,18 +502,18 @@ const Inbox = () => {
           </div>
 
           {/* Message Input */}
-          <div className="p-5 bg-gradient-to-r from-indigo-50 via-blue-50 to-cyan-50 border-t border-white/20 sticky bottom-0 rounded-b-2xl backdrop-blur-sm">
-            <div className="flex items-center gap-3 relative">
+          <div className="p-4 bg-white border-t border-gray-200 sticky bottom-0">
+            <div className="flex items-center gap-2 relative">
               {/* Attach Button with Menu */}
               <div className="relative" ref={attachMenuRef}>
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowAttachMenu(!showAttachMenu)}
-                  className="p-2.5 hover:bg-indigo-200/50 rounded-xl transition backdrop-blur-sm"
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
                   title="Attach files"
                 >
-                  <FiPaperclip size={20} className="text-indigo-600" />
+                  <FiPaperclip size={18} className="text-gray-600" />
                 </motion.button>
 
                 {/* Attach Menu */}
@@ -467,18 +525,25 @@ const Inbox = () => {
                     className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50"
                   >
                     <button
-                      onClick={handleImageAttach}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition w-full text-left"
+                      onClick={handleGifAttach}
+                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition w-full text-left text-sm"
                     >
-                      <FiImage size={18} className="text-indigo-600" />
-                      <span className="text-sm font-medium text-gray-700">Send Image</span>
+                      <FiSmile size={16} className="text-gray-600" />
+                      <span className="text-gray-700 text-sm">Send GIF {!emojiGifUnlocked ? `(${EMOJI_GIF_UNLOCK_COST} coins)` : ''}</span>
+                    </button>
+                    <button
+                      onClick={handleImageAttach}
+                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition w-full text-left border-t border-gray-100"
+                    >
+                      <FiImage size={16} className="text-gray-600" />
+                      <span className="text-gray-700 text-sm">Send Image</span>
                     </button>
                     <button
                       onClick={handleFileAttach}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition w-full text-left border-t border-gray-100"
+                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition w-full text-left border-t border-gray-100"
                     >
-                      <FiFile size={18} className="text-indigo-600" />
-                      <span className="text-sm font-medium text-gray-700">Send File</span>
+                      <FiFile size={16} className="text-gray-600" />
+                      <span className="text-gray-700 text-sm">Send File</span>
                     </button>
                   </motion.div>
                 )}
@@ -490,7 +555,7 @@ const Inbox = () => {
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                className="flex-1 px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-300 placeholder:text-gray-400 font-medium"
+                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-300 placeholder:text-gray-400 font-medium text-gray-900"
               />
 
               {/* Emoji Button with Picker */}
@@ -498,12 +563,22 @@ const Inbox = () => {
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="p-2.5 hover:bg-indigo-200/50 rounded-xl transition backdrop-blur-sm"
-                  title="Add emoji"
+                  onClick={async () => {
+                    const unlocked = await ensureEmojiGifUnlocked('Emojis')
+                    if (!unlocked) return
+                    setShowEmojiPicker(!showEmojiPicker)
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                  title={emojiGifUnlocked ? 'Add emoji' : `Unlock Emojis + GIFs (${EMOJI_GIF_UNLOCK_COST} coins)`}
                 >
-                  <FiSmile size={20} className="text-indigo-600" />
+                  <FiSmile size={18} className="text-gray-600" />
                 </motion.button>
+
+                {!emojiGifUnlocked && (
+                  <span className="absolute -top-2 -right-2 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold border border-amber-300">
+                    {EMOJI_GIF_UNLOCK_COST}
+                  </span>
+                )}
 
                 {/* Emoji Picker */}
                 {showEmojiPicker && (
@@ -524,129 +599,21 @@ const Inbox = () => {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleSendMessage}
                 disabled={!messageInput.trim()}
-                className="p-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Send message"
               >
-                <FiSend size={20} />
+                <FiSend size={18} />
               </motion.button>
             </div>
           </div>
         </Card>
       ) : (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex-1 hidden lg:flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-900 p-12 overflow-y-auto"
-        >
-          <div className="text-center max-w-2xl w-full">
-            {/* Animated Icons */}
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <motion.div 
-                animate={{ y: [0, -15, 0], rotate: [0, 10, 0] }}
-                transition={{ duration: 3, repeat: Infinity, delay: 0 }}
-                className="w-16 h-16 bg-gradient-to-br from-pink-400 to-purple-500 rounded-2xl flex items-center justify-center shadow-2xl"
-              >
-                <FiSmile size={32} className="text-white" />
-              </motion.div>
-              <motion.div 
-                animate={{ y: [0, -15, 0], rotate: [0, -10, 0] }}
-                transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
-                className="w-20 h-20 bg-gradient-to-br from-indigo-400 to-blue-500 rounded-3xl flex items-center justify-center shadow-2xl"
-              >
-                <FiSend size={40} className="text-white" />
-              </motion.div>
-              <motion.div 
-                animate={{ y: [0, -15, 0], rotate: [0, 10, 0] }}
-                transition={{ duration: 3, repeat: Infinity, delay: 1 }}
-                className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-2xl"
-              >
-                <FiImage size={32} className="text-white" />
-              </motion.div>
-            </div>
-
-            {/* Title and Description */}
-            <h2 className="text-4xl font-black text-white mb-4 bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text">
-              Welcome to Your Inbox
-            </h2>
-            <p className="text-xl text-blue-200 mb-8 font-medium">
-              Connect, collaborate, and exchange skills with the community
-            </p>
-
-            {/* Feature Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-              <motion.div 
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/20 transition cursor-default"
-              >
-                <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-                  <FiSmile size={24} className="text-white" />
-                </div>
-                <h4 className="text-white font-bold mb-1 text-sm">Real-time Chat</h4>
-                <p className="text-white/60 text-xs">Instant messaging with typing indicators</p>
-              </motion.div>
-
-              <motion.div 
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/20 transition cursor-default"
-              >
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-                  <FiPaperclip size={24} className="text-white" />
-                </div>
-                <h4 className="text-white font-bold mb-1 text-sm">Rich Media</h4>
-                <p className="text-white/60 text-xs">Share images, files, and emojis</p>
-              </motion.div>
-
-              <motion.div 
-                whileHover={{ scale: 1.05, y: -5 }}
-                className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20 hover:bg-white/20 transition cursor-default"
-              >
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-                  <FiSmile size={24} className="text-white" />
-                </div>
-                <h4 className="text-white font-bold mb-1 text-sm">Smart Emojis</h4>
-                <p className="text-white/60 text-xs">Express yourself with emoji picker</p>
-              </motion.div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => window.location.href = '/#/explore'}
-                className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-bold rounded-xl shadow-2xl transition flex items-center justify-center gap-3 group"
-              >
-                <FiSearch size={20} />
-                <span>Explore People</span>
-                <motion.span
-                  animate={{ x: [0, 5, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  →
-                </motion.span>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => window.location.href = '/#/groups'}
-                className="w-full sm:w-auto px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold rounded-xl border-2 border-white/30 transition flex items-center justify-center gap-3"
-              >
-                <FiSmile size={20} />
-                <span>Browse Groups</span>
-              </motion.button>
-            </div>
-
-            {/* Tip */}
-            <motion.div
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 3, repeat: Infinity }}
-              className="mt-10 text-white/50 text-sm"
-            >
-              💡 Select a conversation from the sidebar or start a new one from the Explore page
-            </motion.div>
+        <div className="flex-1 hidden lg:flex items-center justify-center bg-white p-12 overflow-y-auto border-l border-gray-200">
+          <div className="text-center max-w-md">
+            <p className="text-gray-400 text-lg font-medium mb-2">📬 No Conversation Selected</p>
+            <p className="text-gray-500 text-sm">Select a conversation from the list to start chatting</p>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Avatar Preview Modal */}

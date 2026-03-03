@@ -510,6 +510,14 @@ class FirebaseRealtimeService {
         status: 'pending',
         createdAt: serverTimestamp(),
       })
+
+      // Log activity
+      await this.logUserActivity(fromUserId, {
+        type: 'follow_sent',
+        title: 'Sent follow request',
+        description: 'Started following someone',
+        icon: '👤',
+      })
       
       return true
     } catch (error) {
@@ -562,6 +570,14 @@ class FirebaseRealtimeService {
       await set(ref(realtimeDb, `following/${fromUserId}/${toUserId}`), {
         userId: toUserId,
         followedAt: serverTimestamp(),
+      })
+
+      // Log activity for the person who accepted the follow request
+      await this.logUserActivity(toUserId, {
+        type: 'follow_accepted',
+        title: 'New follower',
+        description: 'Someone followed you',
+        icon: '👥',
       })
 
       return true
@@ -797,13 +813,127 @@ class FirebaseRealtimeService {
 
   // ==================== GROUPS FEATURE ====================
 
+  async spendCoins(userId, amount, reason, metadata = {}) {
+    if (!userId || !amount || amount <= 0) {
+      return { success: false, error: 'Invalid spend request' }
+    }
+
+    try {
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      const userSnapshot = await get(userRef)
+
+      if (!userSnapshot.exists()) {
+        return { success: false, error: 'User not found' }
+      }
+
+      const userData = userSnapshot.val()
+      const currentCoins = userData.coins || 0
+
+      if (currentCoins < amount) {
+        return {
+          success: false,
+          error: `Insufficient coins. You need ${amount} coins.`
+        }
+      }
+
+      const newBalance = currentCoins - amount
+
+      await update(userRef, {
+        coins: newBalance,
+        totalCoinsSpent: (userData.totalCoinsSpent || 0) + amount,
+      })
+
+      const txRef = push(ref(realtimeDb, `coinTransactions/${userId}`))
+      await set(txRef, {
+        type: 'spent',
+        amount: -amount,
+        reason,
+        timestamp: serverTimestamp(),
+        balanceAfter: newBalance,
+        ...metadata,
+      })
+
+      return { success: true, newBalance }
+    } catch (error) {
+      console.error('Error spending coins:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  async getEmojiGifUnlockStatus(userId) {
+    if (!userId) return { success: false, error: 'Invalid user ID' }
+
+    try {
+      const unlockRef = ref(realtimeDb, `users/${userId}/featureUnlocks/emojiGifUnlocked`)
+      const snapshot = await get(unlockRef)
+      return { success: true, unlocked: !!snapshot.val() }
+    } catch (error) {
+      console.error('Error getting emoji/gif unlock status:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  async unlockEmojiGifFeatures(userId) {
+    if (!userId) return { success: false, error: 'Invalid user ID' }
+
+    try {
+      const unlockCost = 25
+      const status = await this.getEmojiGifUnlockStatus(userId)
+
+      if (status.success && status.unlocked) {
+        return { success: true, alreadyUnlocked: true, cost: 0 }
+      }
+
+      const spendResult = await this.spendCoins(
+        userId,
+        unlockCost,
+        'Unlocked chat Emojis & GIFs'
+      )
+
+      if (!spendResult.success) {
+        return { success: false, error: spendResult.error }
+      }
+
+      const featureUnlocksRef = ref(realtimeDb, `users/${userId}/featureUnlocks`)
+      const featureUnlocksSnapshot = await get(featureUnlocksRef)
+      const existingUnlocks = featureUnlocksSnapshot.exists() ? featureUnlocksSnapshot.val() : {}
+
+      await update(ref(realtimeDb, `users/${userId}`), {
+        featureUnlocks: {
+          ...existingUnlocks,
+          emojiGifUnlocked: true,
+          emojiGifUnlockedAt: serverTimestamp(),
+        },
+      })
+
+      return { success: true, alreadyUnlocked: false, cost: unlockCost }
+    } catch (error) {
+      console.error('Error unlocking emoji/gif features:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
   // Create a new group
   async createGroup(groupData) {
     if (!groupData.name || !groupData.createdBy) {
       throw new Error('Group name and creator are required')
     }
 
+    const createGroupCost = 100
+    let hasSpentCoins = false
+
     try {
+      const spendResult = await this.spendCoins(
+        groupData.createdBy,
+        createGroupCost,
+        `Created group: ${groupData.name}`,
+      )
+
+      if (!spendResult.success) {
+        return { success: false, error: spendResult.error }
+      }
+      hasSpentCoins = true
+
       const groupsRef = ref(realtimeDb, 'groups')
       const newGroupRef = push(groupsRef)
       const groupId = newGroupRef.key
@@ -826,9 +956,26 @@ class FirebaseRealtimeService {
         joinedAt: serverTimestamp(),
       })
 
-      return { success: true, groupId }
+      // Log activity
+      await this.logUserActivity(groupData.createdBy, {
+        type: 'group_created',
+        title: `Created group: ${groupData.name}`,
+        description: `Started a new group "${groupData.name}"`,
+        icon: '👥',
+      })
+
+      return { success: true, groupId, coinsSpent: createGroupCost }
     } catch (error) {
       console.error('Error creating group:', error)
+
+      if (hasSpentCoins) {
+        try {
+          await this.awardCoins(groupData.createdBy, createGroupCost, `Refund: Group creation failed`)
+        } catch (refundError) {
+          console.error('Error refunding coins after create group failure:', refundError)
+        }
+      }
+
       return { success: false, error: error.message }
     }
   }
@@ -889,6 +1036,9 @@ class FirebaseRealtimeService {
       throw new Error('Group ID and user ID are required')
     }
 
+    const joinGroupCost = 10
+    let hasSpentCoins = false
+
     try {
       // Check if user is already a member (idempotency)
       const existingMemberRef = ref(realtimeDb, `groupMembers/${groupId}/${userId}`)
@@ -897,6 +1047,18 @@ class FirebaseRealtimeService {
       if (memberSnapshot.exists()) {
         return { success: true, message: 'Already a member' }
       }
+
+      const spendResult = await this.spendCoins(
+        userId,
+        joinGroupCost,
+        `Joined group: ${groupId}`,
+        { groupId }
+      )
+
+      if (!spendResult.success) {
+        return { success: false, error: spendResult.error }
+      }
+      hasSpentCoins = true
 
       // Add user to group members
       await set(existingMemberRef, {
@@ -913,9 +1075,27 @@ class FirebaseRealtimeService {
         memberCount: currentCount + 1,
       })
 
-      return { success: true }
+      // Log activity
+      await this.logUserActivity(userId, {
+        type: 'group_joined',
+        title: 'Joined a group',
+        description: `Joined group for ${joinGroupCost} coins`,
+        amount: -joinGroupCost,
+        icon: '👥',
+      })
+
+      return { success: true, coinsSpent: joinGroupCost }
     } catch (error) {
       console.error('Error joining group:', error)
+
+      if (hasSpentCoins) {
+        try {
+          await this.awardCoins(userId, joinGroupCost, `Refund: Group join failed`)
+        } catch (refundError) {
+          console.error('Error refunding coins after join group failure:', refundError)
+        }
+      }
+
       return { success: false, error: error.message }
     }
   }
@@ -1306,6 +1486,16 @@ class FirebaseRealtimeService {
       await set(newPostRef, postObject)
 
       console.log('Post created successfully with ID:', postId)
+      
+      // Log activity
+      const contentPreview = postData.content.substring(0, 40) + (postData.content.length > 40 ? '...' : '')
+      await this.logUserActivity(postData.authorId, {
+        type: 'post_created',
+        title: 'Posted in community',
+        description: contentPreview,
+        icon: '📝',
+      })
+
       return { success: true, postId }
     } catch (error) {
       console.error('Firebase error creating post:', error)
@@ -1634,6 +1824,20 @@ class FirebaseRealtimeService {
   // Create a teaching session listing (user offers to teach)
   async createTeachingSession(userId, sessionData) {
     const sessionRef = push(ref(realtimeDb, 'teachingSessions'))
+
+    const userRef = ref(realtimeDb, `users/${userId}`)
+    const userSnapshot = await get(userRef)
+    const userData = userSnapshot.exists() ? userSnapshot.val() : {}
+
+    const demoSlots = userData.demoSlots || 0
+    if (demoSlots < 1) {
+      throw new Error('You need a Demo Pass to create a demo class (2 slots per pass).')
+    }
+
+    const profileStrength = userData.profileStrength || 0
+    if (profileStrength < 40) {
+      throw new Error('Complete your teacher profile to create a demo class.')
+    }
     
     // Demo-only mode: fixed 25 coins
     const coinsCost = 25
@@ -1655,8 +1859,24 @@ class FirebaseRealtimeService {
       status: 'active',
       createdAt: serverTimestamp(),
     }
+
+    // Consume one demo slot on creation
+    await update(userRef, {
+      demoSlots: demoSlots - 1,
+      demoSlotsUsed: (userData.demoSlotsUsed || 0) + 1,
+      updatedAt: serverTimestamp()
+    })
     
     await set(sessionRef, session)
+    
+    // Log activity
+    await this.logUserActivity(userId, {
+      type: 'session_created',
+      title: `Created ${sessionData.skillName} session`,
+      description: `Listed a ${sessionData.skillLevel} ${sessionData.skillName} skill exchange session`,
+      icon: '🎓',
+    })
+    
     return { id: sessionRef.key, ...session }
   }
 
@@ -1745,23 +1965,20 @@ class FirebaseRealtimeService {
       throw new Error('You already have an active session. Please complete or leave the current session first.')
     }
     
-    // ✅ REQUIREMENT: Must complete demo before booking full course
+    // Demo-only mode
     if (!session.isDemoCourse) {
-      const hasDemo = await this.hasCompletedDemo(learnerId, session.teacherId)
-      if (!hasDemo) {
-        throw new Error('You must complete a demo class with this teacher before booking the full course')
-      }
+      throw new Error('Only demo sessions are available right now.')
     }
     
-    // For demo courses, use fixed 25 coins
-    const coinsToDeduct = session.isDemoCourse ? 25 : session.coinsCost
+    // Demo cost is fixed at 25 coins (deducted after session ends)
+    const coinsToDeduct = 25
     
     // Get learner coins
     const learnerRef = ref(realtimeDb, `users/${learnerId}`)
     const learnerSnapshot = await get(learnerRef)
     const learnerData = learnerSnapshot.val()
     
-    // Check coins for BOTH demo and full course
+    // Check coins for demo (deducted after demo ends)
     if ((learnerData.coins || 0) < coinsToDeduct) {
       throw new Error(`Insufficient coins. You need ${coinsToDeduct} coins.`)
     }
@@ -1774,42 +1991,14 @@ class FirebaseRealtimeService {
       skillName: session.skillName,
       duration: session.duration,
       coinsCost: coinsToDeduct,
-      isDemoCourse: session.isDemoCourse || false,
+      isDemoCourse: true,
       scheduledTime: selectedSlot,
       status: 'pending',
       coinsDeducted: false, // Track if coins already deducted
       createdAt: serverTimestamp(),
     }
     
-    // ✅ CRITICAL FIX: Deduct coins IMMEDIATELY for BOTH demo and full course
-    // This prevents coin double-spending exploits
-    const deductResult = await this.safelyDeductCoins(
-      learnerId,
-      coinsToDeduct,
-      `${session.isDemoCourse ? 'Demo' : 'Session'} booking: ${session.skillName}`,
-      bookingRef.key
-    )
-    
-    if (!deductResult.success) {
-      throw new Error(deductResult.error)
-    }
-    
-    // Update booking to mark coins as deducted
-    booking.coinsDeducted = true
-    booking.coinsDeductedAt = serverTimestamp()
-    
-    // Track in escrow for full courses (for teacher payment)
-    if (!session.isDemoCourse) {
-      await update(learnerRef, {
-        coinsInEscrow: ((learnerData.coinsInEscrow || 0) + coinsToDeduct)
-      })
-    }
-    
-    const deductType = session.isDemoCourse ? '🎓 DEMO' : '💼 FULL COURSE'
-    const logMsg = session.isDemoCourse 
-      ? `DEMO BOOKED: Learner ${learnerId} joined demo "${session.skillName}" (25 coins deducted immediately)`
-      : `SESSION BOOKED: Learner ${learnerId} booked full course "${session.skillName}" (${coinsToDeduct} coins deducted)`
-    console.log(`${deductType}: ${logMsg}`)
+    console.log(`🎓 DEMO BOOKED: Learner ${learnerId} joined demo "${session.skillName}" (coins deducted after demo ends)`) 
     
     await set(bookingRef, booking)
     
@@ -1817,8 +2006,8 @@ class FirebaseRealtimeService {
     await this.logSessionEvent(learnerId, 'demo_booked', {
       sessionId,
       bookingId: bookingRef.key,
-      isDemoCourse: session.isDemoCourse,
-      coinsDeducted
+      isDemoCourse: true,
+      coinsDeducted: false
     })
     
     return { id: bookingRef.key, ...booking }
@@ -1834,6 +2023,34 @@ class FirebaseRealtimeService {
     }
     
     const booking = bookingSnapshot.val()
+
+    if (booking.isDemoCourse) {
+      // Update booking status first
+      await update(bookingRef, {
+        status: 'completed',
+        completedAt: serverTimestamp(),
+        teacherRating
+      })
+
+      // Deduct coins after demo ends
+      const demoDeduct = await this.deductCoinsForDemoCompletion(
+        booking.learnerId,
+        booking.coinsCost || 25,
+        booking.skillName,
+        bookingId
+      )
+
+      if (!demoDeduct.success) {
+        throw new Error(demoDeduct.error || 'Failed to deduct demo coins')
+      }
+
+      await update(bookingRef, {
+        coinsDeducted: true,
+        coinsDeductedAt: serverTimestamp()
+      })
+
+      return { success: true, coinsCharged: booking.coinsCost || 25 }
+    }
     
     // Update booking status
     await update(bookingRef, {
@@ -2624,6 +2841,91 @@ class FirebaseRealtimeService {
     }
   }
 
+  // Purchase a Demo Pass (mock - no payment integration)
+  async purchaseDemoPass(userId) {
+    try {
+      if (!userId) return { success: false, error: 'Invalid user ID' }
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      const snapshot = await get(userRef)
+      const userData = snapshot.exists() ? snapshot.val() : {}
+
+      const currentSlots = userData.demoSlots || 0
+      const currentPasses = userData.demoPassesPurchased || 0
+
+      const updatedSlots = currentSlots + 2
+      const updatedPasses = currentPasses + 1
+
+      await update(userRef, {
+        demoSlots: updatedSlots,
+        demoPassesPurchased: updatedPasses,
+        demoPassLastPurchasedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+
+      return { success: true, demoSlots: updatedSlots, demoPassesPurchased: updatedPasses }
+    } catch (error) {
+      console.error('Error purchasing demo pass:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  // Store teacher social links (TeacherLinks table)
+  async setTeacherLinks(userId, links) {
+    try {
+      if (!userId) return false
+      const linksRef = ref(realtimeDb, `teacherLinks/${userId}`)
+      await set(linksRef, {
+        ...links,
+        updatedAt: serverTimestamp()
+      })
+      return true
+    } catch (error) {
+      console.error('Error saving teacher links:', error)
+      return false
+    }
+  }
+
+  // Store teacher media (TeacherMedia table)
+  async setTeacherMedia(userId, media) {
+    try {
+      if (!userId) return false
+      const mediaRef = ref(realtimeDb, `teacherMedia/${userId}`)
+      await set(mediaRef, {
+        ...media,
+        updatedAt: serverTimestamp()
+      })
+      return true
+    } catch (error) {
+      console.error('Error saving teacher media:', error)
+      return false
+    }
+  }
+
+  // Get teacher profile with links and media
+  async getTeacherProfile(userId) {
+    try {
+      if (!userId) return null
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      const linksRef = ref(realtimeDb, `teacherLinks/${userId}`)
+      const mediaRef = ref(realtimeDb, `teacherMedia/${userId}`)
+
+      const [userSnap, linksSnap, mediaSnap] = await Promise.all([
+        get(userRef),
+        get(linksRef),
+        get(mediaRef)
+      ])
+
+      return {
+        profile: userSnap.exists() ? userSnap.val() : null,
+        links: linksSnap.exists() ? linksSnap.val() : null,
+        media: mediaSnap.exists() ? mediaSnap.val() : null
+      }
+    } catch (error) {
+      console.error('Error fetching teacher profile:', error)
+      return null
+    }
+  }
+
   // ============================================================
   // DAY STREAK MANAGEMENT SYSTEM
   // ============================================================
@@ -3175,6 +3477,35 @@ class FirebaseRealtimeService {
       if (session.teacherId !== teacherId) {
         return { success: false, error: 'Only session creator can delete' }
       }
+
+      // Refund demo slot if no participants booked this demo
+      if (session.isDemoCourse) {
+        const bookingsRef = ref(realtimeDb, 'sessionBookings')
+        const bookingsSnapshot = await get(bookingsRef)
+        let hasParticipants = false
+
+        if (bookingsSnapshot.exists()) {
+          bookingsSnapshot.forEach((child) => {
+            const booking = child.val()
+            if (booking.sessionId === sessionId) {
+              hasParticipants = true
+            }
+          })
+        }
+
+        if (!hasParticipants) {
+          const teacherRef = ref(realtimeDb, `users/${teacherId}`)
+          const teacherSnapshot = await get(teacherRef)
+          const teacherData = teacherSnapshot.exists() ? teacherSnapshot.val() : {}
+          const currentSlots = teacherData.demoSlots || 0
+
+          await update(teacherRef, {
+            demoSlots: currentSlots + 1,
+            demoSlotsRefunded: (teacherData.demoSlotsRefunded || 0) + 1,
+            updatedAt: serverTimestamp()
+          })
+        }
+      }
       
       await remove(sessionRef)
       return { success: true }
@@ -3198,6 +3529,147 @@ class FirebaseRealtimeService {
     } catch (error) {
       console.error('Error getting room:', error)
       return null
+    }
+  }
+
+  // Delete user account completely
+  async deleteUserAccount(userId) {
+    if (!userId) return { success: false, error: 'Invalid user ID' }
+    
+    try {
+      // Delete user data from Realtime Database
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      await remove(userRef)
+      
+      // Delete user messages
+      const messagesRef = ref(realtimeDb, `messages`)
+      const messagesSnapshot = await get(messagesRef)
+      if (messagesSnapshot.exists()) {
+        messagesSnapshot.forEach((child) => {
+          const conversationId = child.key
+          if (conversationId.includes(userId)) {
+            const convRef = ref(realtimeDb, `messages/${conversationId}`)
+            remove(convRef).catch(err => console.error('Error deleting messages:', err))
+          }
+        })
+      }
+      
+      // Delete user coins data
+      const coinsRef = ref(realtimeDb, `coinTransactions/${userId}`)
+      await remove(coinsRef)
+      
+      // Delete user rewards
+      const rewardsRef = ref(realtimeDb, `userRewards/${userId}`)
+      await remove(rewardsRef)
+      
+      // Delete user status
+      const statusRef = ref(realtimeDb, `status/${userId}`)
+      await remove(statusRef)
+      
+      console.log('✅ User account deleted successfully:', userId)
+      return { success: true }
+    } catch (error) {
+      console.error('Error deleting user account:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  // � Log user activity
+  async logUserActivity(userId, activityData) {
+    if (!userId) return { success: false }
+
+    try {
+      const activityRef = push(ref(realtimeDb, `userActivities/${userId}`))
+      await set(activityRef, {
+        ...activityData,
+        timestamp: serverTimestamp(),
+      })
+      console.log('📝 Activity logged:', activityData.type, 'for user:', userId)
+      return { success: true }
+    } catch (error) {
+      console.error('Error logging activity:', error)
+      return { success: false }
+    }
+  }
+
+  // 📊 Real-time Recent Activity
+  async getUserRecentActivity(userId, limit = 10) {
+    if (!userId) return []
+
+    try {
+      const activities = []
+
+      // Fetch user activities (all types)
+      const activitiesRef = ref(realtimeDb, `userActivities/${userId}`)
+      const activitiesSnapshot = await get(activitiesRef)
+      if (activitiesSnapshot.exists()) {
+        const activitiesData = activitiesSnapshot.val()
+        Object.entries(activitiesData).forEach(([activityId, activity]) => {
+          activities.push({
+            id: `activity_${activityId}`,
+            type: activity.type,
+            title: activity.title,
+            description: activity.description,
+            amount: activity.amount,
+            icon: activity.icon,
+            timestamp: activity.timestamp || new Date().toISOString(),
+          })
+        })
+      }
+
+      // Also fetch coin transactions for backward compatibility
+      const txRef = ref(realtimeDb, `coinTransactions/${userId}`)
+      const txSnapshot = await get(txRef)
+      if (txSnapshot.exists()) {
+        const txData = txSnapshot.val()
+        Object.entries(txData).forEach(([txId, tx]) => {
+          if (tx.type === 'earned' && !activities.some(a => a.id === `tx_${txId}`)) {
+            activities.push({
+              id: `tx_${txId}`,
+              type: 'earned_coins',
+              title: `Earned ${Math.abs(tx.amount)} coins`,
+              description: tx.reason || 'Coins earned',
+              amount: tx.amount,
+              icon: '🎁',
+              timestamp: tx.timestamp || new Date().toISOString(),
+            })
+          }
+        })
+      }
+
+      // Sort by timestamp descending (most recent first) and limit
+      return activities
+        .sort((a, b) => {
+          const timeA = new Date(a.timestamp).getTime()
+          const timeB = new Date(b.timestamp).getTime()
+          return timeB - timeA
+        })
+        .slice(0, limit)
+    } catch (error) {
+      console.error('Error getting recent activity:', error)
+      return []
+    }
+  }
+
+  subscribeToUserRecentActivity(userId, callback) {
+    if (!userId) return () => {}
+
+    try {
+      // Subscribe to user activities (all types: groups, follows, posts, etc.)
+      const activitiesRef = ref(realtimeDb, `userActivities/${userId}`)
+      const unsubscribeActivities = onValue(activitiesRef, async (snapshot) => {
+        const activities = await this.getUserRecentActivity(userId)
+        callback(activities)
+        if (snapshot.exists()) {
+          console.log('🔄 Real-time activities updated:', snapshot.size, 'items')
+        }
+      })
+
+      this.listeners.set(`activity_${userId}`, { ref: activitiesRef, unsubscribe: unsubscribeActivities })
+      return () => this.unsubscribe(`activity_${userId}`)
+    } catch (error) {
+      console.error('Error subscribing to recent activity:', error)
+      return () => {}
     }
   }
 }

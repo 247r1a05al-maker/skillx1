@@ -2,7 +2,14 @@ import React from 'react'
 
 const isSvgAvatar = (value) => {
   if (!value) return false
+  // Always treat SVG/dicebear as placeholders - show initials instead
   const lower = value.toLowerCase()
+  return lower.includes('dicebear') || lower.includes('.svg') || lower.includes('image/svg')
+}
+
+// Convert SVG avatars to initials fallback for cleaner UI
+const shouldShowInitials = (value) => {
+  const lower = (value || '').toLowerCase()
   return lower.includes('dicebear') || lower.includes('.svg') || lower.includes('image/svg')
 }
 

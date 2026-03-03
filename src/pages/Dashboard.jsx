@@ -21,7 +21,6 @@ import { useToast } from '../hooks'
 import { playCoinSound } from '../utils/sounds'
 import WelcomeTour from '../components/WelcomeTour'
 import DayStreakWidget from '../components/DayStreakWidget'
-import StreakLeaderboard from '../components/StreakLeaderboard'
 import SCoinIcon from '../components/SCoinIcon'
 
 const Dashboard = () => {
@@ -75,7 +74,9 @@ const Dashboard = () => {
         setStats(prev => ({ ...prev, coins: cachedCoins }))
         console.log('💰 User coins loaded instantly from cache:', cachedCoins)
 
-        return () => unsubscribe?.()
+        return () => {
+          unsubscribe?.()
+        }
       } catch (error) {
         console.error('❌ Error loading dashboard data:', error)
         setIsLoading(false)
@@ -190,13 +191,7 @@ const Dashboard = () => {
         </div>
       </motion.div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={SCoinIcon} label="Total Coins" value={stats.coins} trend="+12%" />
-        <StatCard icon={FiCheckCircle} label="Sessions Completed" value={stats.sessionsCompleted} trend="+3" />
-        <StatCard icon={FiBook} label="Skills Teaching" value={stats.skillsTeaching} />
-        <StatCard icon={FiUsers} label="Skills Learning" value={stats.skillsLearning} trend="+2" />
-      </div>
+      {/* Stats Cards - REMOVED */}
 
       {/* Quick Start */}
       <Card>
@@ -208,26 +203,10 @@ const Dashboard = () => {
           <Badge variant="secondary">Do 1 today</Badge>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-4 rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-lg bg-indigo-100">
-                <FiPlus className="text-indigo-600" size={20} />
-              </div>
-              <h3 className="font-semibold text-gray-900">Create a Session</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">Offer your skill and earn coins fast.</p>
-            <Button variant="primary" size="sm" onClick={() => navigate('/exchange')}>Create Now</Button>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
             className="p-4 rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -243,7 +222,7 @@ const Dashboard = () => {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.05 }}
             className="p-4 rounded-xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -438,9 +417,6 @@ const Dashboard = () => {
           </div>
         </Card>
       </div>
-
-      {/* Streak Leaderboard */}
-      <StreakLeaderboard limit={10} />
 
       {/* Welcome Tour */}
       <WelcomeTour onComplete={() => setShowTour(false)} />

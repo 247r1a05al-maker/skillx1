@@ -2,18 +2,28 @@
    ELITE MODE - FORCE ALL TEXT TO WHITE
    ========================================== */
 
-/* NUCLEAR OPTION - Override everything */
-html.theme-elite {
-  color: #ffffff !important;
+
+/* EXCEPTIONS - Allow dark text in profile areas for better contrast */
+html.theme-elite .text-gray-900 {
+  color: #111827 !important;
 }
 
-html.theme-elite body {
-  color: #ffffff !important;
+html.theme-elite .text-black {
+  color: #000000 !important;
 }
 
-html.theme-elite * {
-  color: #ffffff !important;
+html.theme-elite [class*="DayStreak"] .text-gray-900 {
+  color: #111827 !important;
 }
+
+html.theme-elite [class*="DayStreak"] p {
+  color: inherit !important;
+}
+
+html.theme-elite [class*="DayStreak"] h2 {
+  color: inherit !important;
+}
+
 
 /* All HTML elements */
 html.theme-elite h1,

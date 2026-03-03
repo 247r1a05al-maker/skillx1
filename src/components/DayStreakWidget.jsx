@@ -114,7 +114,7 @@ const DayStreakWidget = ({ asIcon = false }) => {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className={`bg-gradient-to-br from-${getStreakColor()}-500 to-${getStreakColor()}-600 text-white rounded-2xl p-6 shadow-2xl max-w-sm w-full`}
+                className={`bg-gradient-to-br from-${getStreakColor()}-500 to-${getStreakColor()}-600 text-gray-900 rounded-2xl p-6 shadow-2xl max-w-sm w-full`}
               >
                 {/* Close Button */}
                 <button
@@ -133,7 +133,7 @@ const DayStreakWidget = ({ asIcon = false }) => {
                   >
                     🔥
                   </motion.div>
-                  <h2 className="text-2xl font-bold text-white">Your Streak</h2>
+                  <h2 className="text-2xl font-bold text-gray-900">Your Streak</h2>
                 </div>
 
                 {/* Main Counter */}
@@ -142,29 +142,29 @@ const DayStreakWidget = ({ asIcon = false }) => {
                     key={streak?.currentStreak}
                     initial={{ scale: 1.2, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="text-5xl font-bold mb-1 text-white"
+                    className="text-5xl font-bold mb-1 text-gray-900"
                   >
                     {streak?.currentStreak || 0}
                   </motion.p>
-                  <p className="text-lg text-white opacity-95">days</p>
+                  <p className="text-lg text-gray-900">days</p>
                 </div>
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   <div className="bg-white/20 rounded-lg p-3 text-center">
-                    <p className="text-xs text-white opacity-90 mb-1">Best</p>
-                    <p className="text-2xl font-bold text-white">{streak?.longestStreak || 0}</p>
+                    <p className="text-xs text-gray-900 mb-1">Best</p>
+                    <p className="text-2xl font-bold text-gray-900">{streak?.longestStreak || 0}</p>
                   </div>
                   <div className="bg-white/20 rounded-lg p-3 text-center">
-                    <p className="text-xs text-white opacity-90 mb-1">Total Days</p>
-                    <p className="text-2xl font-bold text-white">{streak?.totalDaysActive || 0}</p>
+                    <p className="text-xs text-gray-900 mb-1">Total Days</p>
+                    <p className="text-2xl font-bold text-gray-900">{streak?.totalDaysActive || 0}</p>
                   </div>
                 </div>
 
                 {/* Achievement Display */}
                 <div className="bg-white/20 rounded-lg p-4 text-center mb-4">
                   <p className="text-4xl mb-2">{getStreakEmoji(streak?.currentStreak || 0)}</p>
-                  <p className="text-lg font-semibold text-white">
+                  <p className="text-lg font-semibold text-gray-900">
                     {streak?.currentStreak === 0
                       ? '✨ Start your streak today!'
                       : streak?.currentStreak < 7
@@ -174,7 +174,7 @@ const DayStreakWidget = ({ asIcon = false }) => {
                 </div>
 
                 {/* Motivational Text */}
-                <p className="text-center text-sm text-white opacity-95">
+                <p className="text-center text-sm text-gray-900">
                   {streak?.currentStreak > 0
                     ? '🚀 Keep it up! Come back daily to maintain your streak.'
                     : 'Come back every day to build your streak and earn coins!'}
@@ -194,7 +194,7 @@ const DayStreakWidget = ({ asIcon = false }) => {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className={`bg-gradient-to-br from-${getStreakColor()}-500 to-${getStreakColor()}-600 text-white p-4 shadow-lg`}>
+      <Card className={`bg-gradient-to-br from-${getStreakColor()}-500 to-${getStreakColor()}-600 text-gray-900 p-4 shadow-lg`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="text-center">

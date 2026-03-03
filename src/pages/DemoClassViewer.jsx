@@ -267,10 +267,10 @@ const DemoClassViewer = ({ booking, session, onClose, onContinueCourse }) => {
                 </Button>
                 <Button
                   variant="primary"
-                  onClick={onContinueCourse}
+                  onClick={onClose}
                   className="flex items-center gap-2"
                 >
-                  ✓ Continue Full Course
+                  Done
                 </Button>
               </div>
             </div>

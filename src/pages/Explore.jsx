@@ -13,11 +13,7 @@ const Explore = () => {
   const [allUsers, setAllUsers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [filters, setFilters] = useState({
-    skill: '',
-    onlineOnly: false,
-    sortBy: 'recent', // 'recent', 'rating', 'online'
-  })
+  // Filters removed - keeping search only
   const [featuredUsers, setFeaturedUsers] = useState([])
   const [recommendedUsers, setRecommendedUsers] = useState([])
 
@@ -110,33 +106,14 @@ const Explore = () => {
     return () => unsubscribe?.()
   }, [authUser])
 
-  const handleFilterChange = (e) => {
-    const { name, value, type, checked } = e.target
-    setFilters((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }))
-  }
-
-  // Filter users based on search and filters
+  // Filter users based on search only
   const filteredUsers = allUsers.filter((user) => {
     const matchesSearch =
       user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.bio?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.skills?.some((s) => s.toLowerCase().includes(searchQuery.toLowerCase()))
-
-    const matchesSkill =
-      !filters.skill ||
-      user.skills?.some((s) => s.toLowerCase().includes(filters.skill.toLowerCase()))
-
-    const matchesOnline = !filters.onlineOnly || user.isOnline
-
-    return matchesSearch && matchesSkill && matchesOnline
-  }).sort((a, b) => {
-    if (filters.sortBy === 'rating') return (b.rating || 0) - (a.rating || 0)
-    if (filters.sortBy === 'online') return (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0)
-    return (b.completedExchanges || 0) - (a.completedExchanges || 0) // recent/popular
-  })
+    return matchesSearch
+  }).sort((a, b) => (b.rating || 0) - (a.rating || 0)) // Always sort by rating
 
   return (
     <div className="space-y-8">
@@ -146,8 +123,8 @@ const Explore = () => {
         <p className="text-gray-600 mt-2 text-lg">Find mentors, learn new skills, and grow together</p>
       </motion.div>
 
-      {/* Featured Users Section - Only show when not searching/filtering */}
-      {!searchQuery && !filters.skill && !filters.onlineOnly && featuredUsers.length > 0 && (
+      {/* Featured Users Section - Only show when not searching */}
+      {!searchQuery && featuredUsers.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card className="bg-gradient-to-r from-indigo-50 to-blue-50 border-indigo-200">
             <div className="flex items-center gap-2 mb-4">
@@ -198,109 +175,47 @@ const Explore = () => {
         </motion.div>
       )}
 
-      {/* Search and Filters */}
+      {/* Search Bar Only */}
       <Card>
-        <div className="space-y-4">
+        <div className="space-y-2">
           {/* Search Bar */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-3 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder="Search by name, skill, or bio..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-                className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 transition"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition text-lg"
-                  title="Clear search"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="flex items-center gap-2 mb-2">
-            <FiFilter size={20} className="text-indigo-600" />
-            <h3 className="text-sm font-semibold text-gray-900">Filters & Sort</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Skill</label>
-              <input
-                type="text"
-                name="skill"
-                placeholder="e.g., React, Design..."
-                value={filters.skill}
-                onChange={(e) => setFilters((prev) => ({ ...prev, skill: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 transition"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-              <select
-                value={filters.sortBy}
-                onChange={(e) => setFilters((prev) => ({ ...prev, sortBy: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 transition"
+          <label className="block text-sm font-medium text-gray-700 mb-3">🔍 Search People</label>
+          <div className="relative">
+            <FiSearch className="absolute left-3 top-3.5 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="Search by name, skill, or bio..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+              className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition font-medium"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition text-lg"
+                title="Clear search"
               >
-                <option value="recent">Most Active</option>
-                <option value="rating">Highest Rated</option>
-                <option value="online">Online Now</option>
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.onlineOnly}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, onlineOnly: e.target.checked }))}
-                  className="w-4 h-4 accent-indigo-600 rounded"
-                />
-                <span className="text-sm font-medium text-gray-700">Online Only</span>
-              </label>
-            </div>
-
-            <div className="flex items-end">
-              {(searchQuery || filters.skill || filters.onlineOnly) && (
-                <button
-                  onClick={() => {
-                    setSearchQuery('')
-                    setFilters({ skill: '', onlineOnly: false, sortBy: 'recent' })
-                  }}
-                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium transition px-3 py-2 bg-indigo-50 rounded-lg w-full"
-                >
-                  Clear Filters
-                </button>
-              )}
-            </div>
+                ✕
+              </button>
+            )}
           </div>
         </div>
       </Card>
 
       {/* Results Summary */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-gray-600">
-            <span className="font-bold text-indigo-600">{filteredUsers.length}</span> of <span className="font-bold text-gray-700">{allUsers.length}</span> members found
-          </p>
-          {allUsers.length === 0 && (
-            <Badge variant="warning" className="text-xs">
-              No members yet
-            </Badge>
-          )}
-        </div>
-        {isLoading && <p className="text-sm text-gray-500 animate-pulse">Loading members...</p>}
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-gray-600">
+          Showing <span className="font-bold text-indigo-600">{filteredUsers.length}</span> of <span className="font-bold text-gray-700">{allUsers.length}</span> members
+        </p>
+        {allUsers.length === 0 && (
+          <Badge variant="warning" className="text-xs">
+            No members yet
+          </Badge>
+        )}
       </div>
+
+      {isLoading && <p className="text-sm text-gray-500 animate-pulse">Loading members...</p>}
 
       {/* User Cards Grid */}
       {isLoading ? (
@@ -458,7 +373,7 @@ const Explore = () => {
           >
             <FiSearch size={64} className="text-gray-200 mx-auto mb-6" />
             <p className="text-gray-600 text-2xl font-bold mb-2">No members found</p>
-            {searchQuery || filters.skill || filters.onlineOnly ? (
+            {searchQuery ? (
               <>
                 <p className="text-gray-500 text-base mb-6 max-w-md">
                   Try adjusting your search query or filters to discover more members
@@ -466,11 +381,10 @@ const Explore = () => {
                 <button
                   onClick={() => {
                     setSearchQuery('')
-                    setFilters({ skill: '', onlineOnly: false, sortBy: 'recent' })
                   }}
                   className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium"
                 >
-                  Clear All Filters
+                  Clear Search
                 </button>
               </>
             ) : (
@@ -491,7 +405,7 @@ const Explore = () => {
       )}
 
       {/* Recommended Section - Show at bottom when there are results */}
-      {!searchQuery && !filters.skill && filteredUsers.length > 0 && recommendedUsers.length > 0 && (
+      {!searchQuery && filteredUsers.length > 0 && recommendedUsers.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
             <div className="flex items-center gap-2 mb-4">
