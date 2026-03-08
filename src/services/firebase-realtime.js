@@ -526,6 +526,68 @@ class FirebaseRealtimeService {
     }
   }
 
+  // Direct follow relationship (used by Profile page follow button)
+  async followUser(fromUserId, toUserId) {
+    if (!fromUserId || !toUserId || fromUserId === toUserId) return false
+
+    try {
+      await set(ref(realtimeDb, `followers/${toUserId}/${fromUserId}`), {
+        userId: fromUserId,
+        followedAt: serverTimestamp(),
+      })
+
+      await set(ref(realtimeDb, `following/${fromUserId}/${toUserId}`), {
+        userId: toUserId,
+        followedAt: serverTimestamp(),
+      })
+
+      await this.logUserActivity(fromUserId, {
+        type: 'followed_user',
+        title: 'Started following',
+        description: 'Connected with a new user',
+        icon: '👤',
+      })
+
+      await this.logUserActivity(toUserId, {
+        type: 'new_follower',
+        title: 'New follower',
+        description: 'Someone followed you',
+        icon: '👥',
+      })
+
+      return true
+    } catch (error) {
+      console.error('Error following user:', error)
+      return false
+    }
+  }
+
+  async unfollowUser(fromUserId, toUserId) {
+    if (!fromUserId || !toUserId || fromUserId === toUserId) return false
+
+    try {
+      await remove(ref(realtimeDb, `followers/${toUserId}/${fromUserId}`))
+      await remove(ref(realtimeDb, `following/${fromUserId}/${toUserId}`))
+      return true
+    } catch (error) {
+      console.error('Error unfollowing user:', error)
+      return false
+    }
+  }
+
+  async checkIsFollowing(fromUserId, toUserId) {
+    if (!fromUserId || !toUserId || fromUserId === toUserId) return false
+
+    try {
+      const followingRef = ref(realtimeDb, `following/${fromUserId}/${toUserId}`)
+      const snapshot = await get(followingRef)
+      return snapshot.exists()
+    } catch (error) {
+      console.error('Error checking follow status:', error)
+      return false
+    }
+  }
+
   // Get follow requests for a user
   subscribeToFollowRequests(userId, callback) {
     if (!userId) return
@@ -1522,6 +1584,92 @@ class FirebaseRealtimeService {
 
     this.listeners.set('posts', { ref: postsRef, unsubscribe })
     return () => this.unsubscribe('posts')
+  }
+
+  // Subscribe to posts created by a specific user
+  subscribeToUserPosts(userId, callback) {
+    if (!userId) return () => {}
+
+    const postsRef = ref(realtimeDb, 'posts')
+    const unsubscribe = onValue(postsRef, (snapshot) => {
+      const posts = []
+      if (snapshot.exists()) {
+        snapshot.forEach((childSnapshot) => {
+          const post = childSnapshot.val()
+          if (post?.authorId === userId) {
+            posts.push(post)
+          }
+        })
+      }
+
+      posts.sort((a, b) => {
+        const timeA = a.createdAt || 0
+        const timeB = b.createdAt || 0
+        return timeB - timeA
+      })
+
+      callback(posts)
+    })
+
+    this.listeners.set(`user-posts-${userId}`, { ref: postsRef, unsubscribe })
+    return () => this.unsubscribe(`user-posts-${userId}`)
+  }
+
+  // Subscribe to achievements for a user
+  subscribeToUserAchievements(userId, callback) {
+    if (!userId) return () => {}
+
+    const achievementsRef = ref(realtimeDb, `achievements/${userId}`)
+    const unsubscribe = onValue(achievementsRef, (snapshot) => {
+      const achievements = []
+
+      if (snapshot.exists()) {
+        snapshot.forEach((childSnapshot) => {
+          achievements.push({
+            id: childSnapshot.key,
+            ...childSnapshot.val(),
+          })
+        })
+      }
+
+      achievements.sort((a, b) => {
+        const timeA = a.dateEarned || a.earnedAt || a.timestamp || 0
+        const timeB = b.dateEarned || b.earnedAt || b.timestamp || 0
+        return new Date(timeB).getTime() - new Date(timeA).getTime()
+      })
+
+      callback(achievements)
+    })
+
+    this.listeners.set(`achievements-${userId}`, { ref: achievementsRef, unsubscribe })
+    return () => this.unsubscribe(`achievements-${userId}`)
+  }
+
+  // Subscribe to number of groups joined by a user
+  subscribeToGroupsJoinedCount(userId, callback) {
+    if (!userId) return () => {}
+
+    const groupMembersRef = ref(realtimeDb, 'groupMembers')
+    const unsubscribe = onValue(groupMembersRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        callback(0)
+        return
+      }
+
+      let joinedCount = 0
+      const allGroups = snapshot.val() || {}
+
+      Object.values(allGroups).forEach((members) => {
+        if (members && members[userId]) {
+          joinedCount += 1
+        }
+      })
+
+      callback(joinedCount)
+    })
+
+    this.listeners.set(`groups-joined-${userId}`, { ref: groupMembersRef, unsubscribe })
+    return () => this.unsubscribe(`groups-joined-${userId}`)
   }
 
   // Like/Unlike a post

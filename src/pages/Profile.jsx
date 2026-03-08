@@ -1,977 +1,805 @@
-import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { FiEdit2, FiMessageSquare, FiUserPlus, FiAward, FiUsers, FiX, FiCheck, FiArrowLeft, FiTrash2, FiZap } from 'react-icons/fi'
-import { useAuthStore } from '../store'
-import { userProfileService } from '../services/user-profile'
-import firebaseRealtime from '../services/firebase-realtime'
+import {
+  FiArrowLeft,
+  FiAward,
+  FiCamera,
+  FiCheck,
+  FiEdit2,
+  FiFileText,
+  FiMapPin,
+  FiMessageSquare,
+  FiUsers,
+  FiX,
+  FiZap,
+} from 'react-icons/fi'
 import { Card, Button, Badge } from '../components/UI'
-import { calculateBadges } from '../utils/badges'
 import Avatar from '../components/Avatar'
-import DayStreakWidget from '../components/DayStreakWidget'
+import { useAuthStore } from '../store'
+import firebaseRealtime from '../services/firebase-realtime'
+import { userProfileService } from '../services/user-profile'
+import { calculateBadges } from '../utils/badges'
+
+const LEVEL_POINTS = 120
+
+const formatDateTime = (value) => {
+  if (!value) return 'Recently'
+  const time = new Date(value)
+  if (Number.isNaN(time.getTime())) return 'Recently'
+  return time.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const getInitialProfile = (authUser, userId) => ({
+  id: userId,
+  name: authUser?.displayName || authUser?.name || 'User',
+  email: authUser?.email || '',
+  bio: '',
+  role: 'Skill Learner',
+  location: '',
+  avatar: '',
+  coins: 0,
+  groups: 0,
+  skills: {
+    teaching: [],
+    learning: [],
+  },
+})
 
 const Profile = () => {
-  const { userId: paramUserId } = useParams()
   const navigate = useNavigate()
+  const { userId: paramUserId } = useParams()
   const { user: authUser, isAuthenticated } = useAuthStore()
+
   const [user, setUser] = useState(null)
-  const [isEditing, setIsEditing] = useState(false)
+  const [isOwnProfile, setIsOwnProfile] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [followRequestStatus, setFollowRequestStatus] = useState(null) // 'pending', 'accepted', null
-  const [isFollowingLoading, setIsFollowingLoading] = useState(false)
-  const [avatarPreview, setAvatarPreview] = useState(null)
-  const [isOwnProfile, setIsOwnProfile] = useState(false)
+  const [activeTab, setActiveTab] = useState('profile')
+
   const [followersCount, setFollowersCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
+  const [groupsJoined, setGroupsJoined] = useState(0)
+  const [totalUsers, setTotalUsers] = useState(0)
+
+  const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 })
+  const [recentActivity, setRecentActivity] = useState([])
+  const [userPosts, setUserPosts] = useState([])
+  const [achievements, setAchievements] = useState([])
+
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [isFollowLoading, setIsFollowLoading] = useState(false)
+
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showPostModal, setShowPostModal] = useState(false)
+  const [selectedPost, setSelectedPost] = useState(null)
+
   const [showFollowersModal, setShowFollowersModal] = useState(false)
   const [showFollowingModal, setShowFollowingModal] = useState(false)
   const [followersList, setFollowersList] = useState([])
   const [followingList, setFollowingList] = useState([])
-  const [isLoadingLists, setIsLoadingLists] = useState(false)
-  const [unsubscribeFollowers, setUnsubscribeFollowers] = useState(null)
-  const [unsubscribeFollowing, setUnsubscribeFollowing] = useState(null)
-  const [earnedBadges, setEarnedBadges] = useState([])
-  const [inProgressBadges, setInProgressBadges] = useState([])
-  const [streakData, setStreakData] = useState(null)
-  const [recentActivity, setRecentActivity] = useState([])
+
   const [editForm, setEditForm] = useState({
     name: '',
-    email: '',
     bio: '',
+    role: '',
+    location: '',
     avatar: '',
+    teachSkillsText: '',
+    learnSkillsText: '',
   })
-  const premiumEmails = ['247r1a05al@cmrtc.ac.in', 'karthikgajabheemkar@gmail.com']
-  const premiumUsername = 'karthik'
-  const normalizedEmail = (user?.email || authUser?.email || editForm.email || '').toLowerCase().trim()
-  const isPremiumOwner = premiumEmails.includes(normalizedEmail) || (user?.username || '').toLowerCase() === premiumUsername
 
-  // Load user profile from Firebase
+  const avatarInputRef = useRef(null)
+
+  const currentUserId = authUser?.uid || authUser?.id
+  const profileUserId = paramUserId || currentUserId
+
   useEffect(() => {
-    const loadUserProfile = async () => {
-      if (!isAuthenticated || !authUser) {
-        setIsLoading(false)
-        return
-      }
-
-      const currentUserId = authUser.uid || authUser.id
-      // If paramUserId exists, load that user's profile; otherwise load current user's
-      const userIdToLoad = paramUserId || currentUserId
-      const isOwnProfileFlag = !paramUserId || paramUserId === currentUserId
-
-      if (!userIdToLoad) {
-        setIsLoading(false)
-        return
-      }
-      
-      setIsLoading(true)
-      try {
-        // For viewing other user's profiles, get from Firebase directly
-        if (paramUserId && paramUserId !== currentUserId) {
-          const unsubscribe = firebaseRealtime.subscribeToCurrentUser(paramUserId, (userData) => {
-            if (userData) {
-              // Ensure user object has id field and hideEmail is included
-              const userWithId = { ...userData, id: paramUserId }
-              console.log('📋 Loaded other user profile:', { name: userWithId.name, hideEmail: userWithId.hideEmail })
-              setUser(userWithId)
-              setIsOwnProfile(false)
-              setAvatarPreview(userData.avatar || '')
-            }
-            setIsLoading(false)
-          })
-          return () => unsubscribe?.()
-        } else {
-          // Load own profile
-          const result = await userProfileService.getUserProfile(currentUserId)
-          
-          if (result.success && result.data) {
-            // Ensure user object has id field
-            const userWithId = { ...result.data, id: currentUserId }
-            setUser(userWithId)
-            setIsOwnProfile(true)
-            setEditForm({
-              name: result.data.name || authUser.displayName || authUser.name || '',
-              email: result.data.email || authUser.email || '',
-              bio: result.data.bio || '',
-              avatar: result.data.avatar || '',
-            })
-            setAvatarPreview(result.data.avatar || '')
-          } else {
-            // Create default profile if doesn't exist
-            const defaultProfile = {
-              id: currentUserId,
-              name: authUser.displayName || authUser.name || 'User',
-              email: authUser.email || '',
-              bio: '',
-              avatar: '',
-              followers: 0,
-              following: 0,
-              coins: 0,
-              certificates: 0,
-              groups: 0,
-              skills: {
-                teaching: [],
-                learning: [],
-              },
-            }
-            setUser(defaultProfile)
-            setIsOwnProfile(true)
-            setEditForm({
-              name: defaultProfile.name,
-              email: defaultProfile.email,
-              bio: defaultProfile.bio,
-              avatar: defaultProfile.avatar,
-            })
-            setAvatarPreview(defaultProfile.avatar)
-          }
-        }
-      } catch (error) {
-        console.error('Error loading profile:', error)
-        // Set default profile on error
-        const defaultProfile = {
-          id: currentUserId,
-          name: authUser.displayName || authUser.name || 'User',
-          email: authUser.email || '',
-          bio: '',
-          avatar: '',
-          followers: 0,
-          following: 0,
-          coins: 0,
-          certificates: 0,
-          groups: 0,
-          skills: {
-            teaching: [],
-            learning: [],
-          },
-        }
-        setUser(defaultProfile)
-        setIsOwnProfile(true)
-        setEditForm({
-          name: defaultProfile.name,
-          email: defaultProfile.email,
-          bio: defaultProfile.bio,
-          avatar: defaultProfile.avatar,
-        })
-        setAvatarPreview(defaultProfile.avatar)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    loadUserProfile()
-  }, [isAuthenticated, authUser, paramUserId])
-
-  // Subscribe to followers and following counts in real-time
-  useEffect(() => {
-    if (!user?.id) {
-      console.log('No user ID, skipping count subscription')
+    if (!isAuthenticated || !profileUserId || !authUser) {
+      setIsLoading(false)
       return
     }
 
-    const userIdToLoad = user.id
-    console.log('🔄 Setting up count subscriptions for user:', userIdToLoad)
+    setIsLoading(true)
 
-    // Subscribe to followers count
-    const unsubscribeFollowers = firebaseRealtime.subscribeToFollowersCount(userIdToLoad, (count) => {
-      console.log('📊 Followers count callback - received:', count)
-      setFollowersCount(count)
-    })
+    const unsubscribeUser = firebaseRealtime.subscribeToCurrentUser(profileUserId, (profileData) => {
+      const own = profileUserId === currentUserId
+      setIsOwnProfile(own)
 
-    // Subscribe to following count
-    const unsubscribeFollowing = firebaseRealtime.subscribeToFollowingCount(userIdToLoad, (count) => {
-      console.log('📊 Following count callback - received:', count)
-      setFollowingCount(count)
-    })
-
-    // Verify initial counts by fetching once
-    const verifyInitialCounts = async () => {
-      try {
-        const followersSnap = await firebaseRealtime.getFollowersCount(userIdToLoad)
-        const followingSnap = await firebaseRealtime.getFollowingCount(userIdToLoad)
-        console.log('✅ Verified initial followers:', followersSnap, 'following:', followingSnap)
-      } catch (error) {
-        console.error('❌ Error verifying counts:', error)
+      if (profileData) {
+        const mergedUser = {
+          ...getInitialProfile(authUser, profileUserId),
+          ...profileData,
+          id: profileUserId,
+          skills: {
+            teaching: profileData?.skills?.teaching || [],
+            learning: profileData?.skills?.learning || [],
+          },
+        }
+        setUser(mergedUser)
+        setEditForm({
+          name: mergedUser.name || '',
+          bio: mergedUser.bio || '',
+          role: mergedUser.role || mergedUser.title || 'Skill Learner',
+          location: mergedUser.location || '',
+          avatar: mergedUser.avatar || '',
+          teachSkillsText: (mergedUser.skills?.teaching || []).join(', '),
+          learnSkillsText: (mergedUser.skills?.learning || []).join(', '),
+        })
+      } else {
+        const fallback = getInitialProfile(authUser, profileUserId)
+        setUser(fallback)
+        setEditForm({
+          name: fallback.name,
+          bio: fallback.bio,
+          role: fallback.role,
+          location: fallback.location,
+          avatar: fallback.avatar,
+          teachSkillsText: '',
+          learnSkillsText: '',
+        })
       }
-    }
 
-    verifyInitialCounts()
+      setIsLoading(false)
+    })
+
+    return () => unsubscribeUser?.()
+  }, [isAuthenticated, authUser, profileUserId, currentUserId])
+
+  useEffect(() => {
+    if (!profileUserId) return
+
+    const unsubFollowersCount = firebaseRealtime.subscribeToFollowersCount(profileUserId, setFollowersCount)
+    const unsubFollowingCount = firebaseRealtime.subscribeToFollowingCount(profileUserId, setFollowingCount)
+    const unsubGroups = firebaseRealtime.subscribeToGroupsJoinedCount(profileUserId, setGroupsJoined)
+    const unsubActivities = firebaseRealtime.subscribeToUserRecentActivity(profileUserId, (items) => {
+      setRecentActivity((items || []).slice(0, 10))
+    })
+    const unsubPosts = firebaseRealtime.subscribeToUserPosts(profileUserId, setUserPosts)
+    const unsubAchievements = firebaseRealtime.subscribeToUserAchievements(profileUserId, setAchievements)
+    const unsubUsers = firebaseRealtime.subscribeToUsers((users) => setTotalUsers(users.length || 0))
+    const unsubFollowersList = firebaseRealtime.subscribeToFollowers(profileUserId, setFollowersList)
+    const unsubFollowingList = firebaseRealtime.subscribeToFollowing(profileUserId, setFollowingList)
+
+    firebaseRealtime.getDayStreak(profileUserId)
+      .then((streak) => setStreakData(streak || { currentStreak: 0, longestStreak: 0 }))
+      .catch(() => setStreakData({ currentStreak: 0, longestStreak: 0 }))
 
     return () => {
-      console.log('🛑 Cleaning up count subscriptions for user:', userIdToLoad)
-      if (unsubscribeFollowers) unsubscribeFollowers()
-      if (unsubscribeFollowing) unsubscribeFollowing()
+      unsubFollowersCount?.()
+      unsubFollowingCount?.()
+      unsubGroups?.()
+      unsubActivities?.()
+      unsubPosts?.()
+      unsubAchievements?.()
+      unsubUsers?.()
+      unsubFollowersList?.()
+      unsubFollowingList?.()
     }
-  }, [user?.id])
+  }, [profileUserId])
 
-  // Load streak data for the user
   useEffect(() => {
-    const loadStreakData = async () => {
-      if (!user?.id) return
-
-      try {
-        const streak = await firebaseRealtime.getDayStreak(user.id)
-        setStreakData(streak)
-      } catch (error) {
-        console.error('Error loading streak data:', error)
-      }
+    if (isOwnProfile || !currentUserId || !profileUserId) {
+      setIsFollowing(false)
+      return
     }
 
-    loadStreakData()
-  }, [user?.id])
-
-  // Subscribe to recent activity (achievements only - no coin transactions)
-  useEffect(() => {
-    if (!user?.id) return
-
-    console.log('🔄 Setting up activity subscription for user:', user.id)
-    const unsubscribeActivity = firebaseRealtime.subscribeToUserRecentActivity(user.id, (activities) => {
-      // Filter out coin-only transactions, keep only real achievements
-      const achievements = activities.filter(activity => activity.type !== 'earned_coins')
-      console.log('📈 Recent achievements updated:', achievements.length, 'items')
-      setRecentActivity(achievements)
+    let mounted = true
+    firebaseRealtime.checkIsFollowing(currentUserId, profileUserId).then((result) => {
+      if (mounted) setIsFollowing(result)
     })
 
     return () => {
-      console.log('🛑 Cleaning up activity subscription')
-      unsubscribeActivity?.()
+      mounted = false
     }
-  }, [user?.id])
+  }, [isOwnProfile, currentUserId, profileUserId, followersCount])
 
-  // Calculate badges when user data or counts change
-  useEffect(() => {
-    if (!user) return
+  const likesReceived = useMemo(
+    () => userPosts.reduce((sum, post) => sum + (post.likesCount || 0), 0),
+    [userPosts]
+  )
 
-    const userStats = {
-      groups: user.groups || 0,
+  const rankMetrics = useMemo(() => {
+    const postPoints = userPosts.length * 15
+    const activityPoints = recentActivity.length * 5
+    const followerPoints = followersCount * 3
+    const likesPoints = likesReceived * 4
+    const groupPoints = groupsJoined * 10
+    const streakPoints = (streakData?.currentStreak || 0) * 2
+
+    const totalPoints = postPoints + activityPoints + followerPoints + likesPoints + groupPoints + streakPoints
+    const level = Math.max(1, Math.floor(totalPoints / LEVEL_POINTS) + 1)
+    const progressToNext = Math.round((totalPoints % LEVEL_POINTS) / LEVEL_POINTS * 100)
+
+    const computedRank = totalUsers > 0
+      ? Math.max(1, totalUsers - Math.floor(totalPoints / 50))
+      : 1
+
+    return {
+      totalPoints,
+      level,
+      progressToNext,
+      rank: user?.communityRank || computedRank,
+      rankedTotal: user?.totalRankedUsers || totalUsers || 1,
+    }
+  }, [user, userPosts, recentActivity, followersCount, likesReceived, groupsJoined, streakData, totalUsers])
+
+  const badgeStats = useMemo(() => {
+    return calculateBadges({
+      groups: groupsJoined,
       followers: followersCount,
       following: followingCount,
-      messagesSent: user.messagesSent || 0,
-      groupsCreated: user.groupsCreated || 0,
-      postsCreated: user.postsCreated || 0,
-      coins: user.coins || 0,
+      messagesSent: user?.messagesSent || 0,
+      groupsCreated: user?.groupsCreated || 0,
+      postsCreated: userPosts.length,
+      coins: user?.coins || 0,
+      certificates: (achievements || []).length,
+      teachingSkills: user?.skills?.teaching?.length || 0,
+      learningSkills: user?.skills?.learning?.length || 0,
       maxStreak: streakData?.longestStreak || 0,
-      teachingSkills: user.skills?.teaching?.length || 0,
-      learningSkills: user.skills?.learning?.length || 0
+    })
+  }, [groupsJoined, followersCount, followingCount, user, userPosts.length, achievements, streakData])
+
+  const effectiveBadges = achievements.length > 0
+    ? achievements.map((item, index) => ({
+        id: item.id || `${item.badgeName || 'badge'}-${index}`,
+        name: item.badgeName || item.name || 'Achievement',
+        description: item.description || 'Earned by activity milestones',
+        icon: item.icon || '🏆',
+        earnedAt: item.dateEarned || item.earnedAt || item.timestamp,
+      }))
+    : badgeStats.earnedBadges.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        icon: '🏆',
+        earnedAt: null,
+      }))
+
+  const handleAvatarUpload = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file || !isOwnProfile || !profileUserId) return
+
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      const avatar = typeof e.target?.result === 'string' ? e.target.result : ''
+      if (!avatar) return
+
+      setEditForm((prev) => ({ ...prev, avatar }))
+      setUser((prev) => ({ ...prev, avatar }))
+
+      await userProfileService.updateUserProfile(profileUserId, { avatar })
     }
-
-    const { earnedBadges: earned, inProgressBadges: inProgress } = calculateBadges(userStats)
-    setEarnedBadges(earned)
-    setInProgressBadges(inProgress)
-  }, [user, followersCount, followingCount, streakData])
-
-  // Check follow request status for other users
-  useEffect(() => {
-    if (isOwnProfile || !paramUserId || !authUser) return
-
-    const checkStatus = async () => {
-      const currentUserId = authUser.uid || authUser.id
-      const status = await firebaseRealtime.checkFollowRequestStatus(currentUserId, paramUserId)
-      setFollowRequestStatus(status)
-    }
-
-    checkStatus()
-  }, [isOwnProfile, paramUserId, authUser])
-
-  // Handle follow/unfollow request
-  const handleFollowRequest = async () => {
-    if (!authUser || !paramUserId) return
-
-    const currentUserId = authUser.uid || authUser.id
-    setIsFollowingLoading(true)
-
-    try {
-      if (followRequestStatus === 'pending') {
-        // Cancel pending request
-        alert('Follow request is pending. Cannot cancel yet.')
-      } else if (followRequestStatus === 'accepted') {
-        // Unfollow (remove follower relationship)
-        alert('Unfollow feature coming soon')
-      } else {
-        // Send new follow request
-        const success = await firebaseRealtime.sendFollowRequest(currentUserId, paramUserId)
-        if (success) {
-          setFollowRequestStatus('pending')
-          alert('Follow request sent! 📬')
-        } else {
-          alert('Failed to send follow request')
-        }
-      }
-    } catch (error) {
-      console.error('Error handling follow request:', error)
-      alert('Error: ' + error.message)
-    } finally {
-      setIsFollowingLoading(false)
-    }
-  }
-
-  // Load followers list with real-time updates
-  const loadFollowersList = async () => {
-    if (!user?.id) return
-    setIsLoadingLists(true)
-    try {
-      // Subscribe to real-time followers updates
-      const unsubscribe = firebaseRealtime.subscribeToFollowers(user.id, (followers) => {
-        // Deduplicate followers by ID
-        const uniqueFollowers = Array.from(new Map(followers.map(f => [f.id, f])).values())
-        console.log('🔄 Real-time followers updated:', uniqueFollowers.length)
-        setFollowersList(uniqueFollowers)
-      })
-      
-      setUnsubscribeFollowers(unsubscribe)
-      setShowFollowersModal(true)
-    } catch (error) {
-      console.error('Error loading followers:', error)
-      alert('Error loading followers')
-    } finally {
-      setIsLoadingLists(false)
-    }
-  }
-
-  // Load following list with real-time updates
-  const loadFollowingList = async () => {
-    if (!user?.id) return
-    setIsLoadingLists(true)
-    try {
-      // Subscribe to real-time following updates
-      const unsubscribe = firebaseRealtime.subscribeToFollowing(user.id, (following) => {
-        // Deduplicate following by ID
-        const uniqueFollowing = Array.from(new Map(following.map(f => [f.id, f])).values())
-        console.log('🔄 Real-time following updated:', uniqueFollowing.length)
-        setFollowingList(uniqueFollowing)
-      })
-      
-      setUnsubscribeFollowing(unsubscribe)
-      setShowFollowingModal(true)
-    } catch (error) {
-      console.error('Error loading following:', error)
-      alert('Error loading following')
-    } finally {
-      setIsLoadingLists(false)
-    }
-  }
-
-  const handleAvatarChange = (e) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const result = event.target?.result
-        if (typeof result === 'string') {
-          setAvatarPreview(result)
-          setEditForm(prev => ({ ...prev, avatar: result }))
-        }
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleEditChange = (e) => {
-    const { name, value } = e.target
-    setEditForm(prev => ({ ...prev, [name]: value }))
+    reader.readAsDataURL(file)
   }
 
   const handleSaveProfile = async () => {
-    const userId = authUser?.uid || authUser?.id
-    if (!userId) return
-    
+    if (!profileUserId || !isOwnProfile) return
+
     setIsSaving(true)
     try {
-      const result = await userProfileService.updateUserProfile(userId, {
-        name: editForm.name,
-        email: editForm.email,
-        bio: editForm.bio,
-        avatar: avatarPreview || null,
-      })
+      const teachSkills = editForm.teachSkillsText
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+      const learnSkills = editForm.learnSkillsText
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
 
-      if (result.success) {
-        setUser(prev => ({
-          ...prev,
-          ...editForm,
-          avatar: avatarPreview || null,
-        }))
-        setIsEditing(false)
-        alert('Profile updated successfully!')
-      } else {
-        alert('Error updating profile: ' + result.error)
+      const updates = {
+        name: editForm.name.trim(),
+        bio: editForm.bio.trim(),
+        role: editForm.role.trim(),
+        location: editForm.location.trim(),
+        avatar: editForm.avatar || user?.avatar || '',
+        skills: {
+          teaching: teachSkills,
+          learning: learnSkills,
+        },
       }
-    } catch (error) {
-      console.error('Error saving profile:', error)
-      alert('Error saving profile')
+
+      const result = await userProfileService.updateUserProfile(profileUserId, updates)
+      if (result.success) {
+        setUser((prev) => ({ ...prev, ...updates }))
+        setShowEditModal(false)
+      }
     } finally {
       setIsSaving(false)
     }
   }
 
-  const handleCancel = () => {
-    setIsEditing(false)
-    setEditForm({
-      name: user?.name || '',
-      email: user?.email || '',
-      bio: user?.bio || '',
-      avatar: user?.avatar || null,
-    })
-    setAvatarPreview(user?.avatar || '')
+  const handleFollowToggle = async () => {
+    if (!currentUserId || !profileUserId || isOwnProfile) return
+
+    setIsFollowLoading(true)
+    try {
+      if (isFollowing) {
+        const ok = await firebaseRealtime.unfollowUser(currentUserId, profileUserId)
+        if (ok) setIsFollowing(false)
+      } else {
+        const ok = await firebaseRealtime.followUser(currentUserId, profileUserId)
+        if (ok) setIsFollowing(true)
+      }
+    } finally {
+      setIsFollowLoading(false)
+    }
+  }
+
+  const handleMessageClick = async () => {
+    if (!currentUserId || !profileUserId || isOwnProfile) return
+    await firebaseRealtime.createOrGetConversation(currentUserId, profileUserId)
+    navigate(`/inbox?user=${profileUserId}`)
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <div className="h-10 w-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <p className="text-gray-600">Loading profile...</p>
         </div>
       </div>
     )
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <Card className="max-w-md w-full text-center">
+          <h2 className="text-xl font-bold text-gray-900 mb-2">User not found</h2>
+          <p className="text-gray-600 mb-4">This profile is not available right now.</p>
+          <Button variant="primary" onClick={() => navigate('/explore')}>Go to Explore</Button>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50">
-      <div className="w-full max-w-5xl mx-auto px-4 py-6 space-y-6 mt-20">
-      {/* Edit Profile Modal */}
-      {isEditing && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Edit Profile</h2>
-              <button
-                onClick={handleCancel}
-                disabled={isSaving}
-                className="p-1 hover:bg-gray-100 rounded-lg transition disabled:opacity-50"
-              >
-                <FiX size={24} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Avatar Upload */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Avatar</label>
-                <div className="flex items-center gap-4">
-                  {avatarPreview ? (
-                    <img
-                      src={avatarPreview}
-                      alt="Avatar preview"
-                      className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200"
-                    />
-                  ) : (
-                    <Avatar
-                      src={null}
-                      name={editForm.name || 'User'}
-                      userId={authUser?.uid || authUser?.id}
-                      size="md"
-                      className="border-2 border-indigo-200"
-                    />
-                  )}
-                  <div className="flex-1 flex flex-col gap-2">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="text-sm text-gray-500"
-                      disabled={isSaving}
-                    />
-                    {avatarPreview && (
-                      <button
-                        onClick={() => {
-                          setAvatarPreview('')
-                          setEditForm(prev => ({ ...prev, avatar: '' }))
-                        }}
-                        disabled={isSaving}
-                        className="px-3 py-1 text-sm bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition disabled:opacity-50 font-medium flex items-center gap-2 w-fit"
-                      >
-                        <FiTrash2 size={14} /> Remove Photo
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={editForm.name}
-                  onChange={handleEditChange}
-                  placeholder="Enter your name"
-                  disabled={isSaving}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={editForm.email}
-                  onChange={handleEditChange}
-                  placeholder="Enter your email"
-                  disabled={isSaving}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
-                />
-              </div>
-
-              {/* Bio */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Bio</label>
-                <textarea
-                  name="bio"
-                  value={editForm.bio}
-                  onChange={handleEditChange}
-                  placeholder="Tell us about yourself"
-                  disabled={isSaving}
-                  rows={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 resize-none"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleCancel}
-                  disabled={isSaving}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-                >
-                  <FiX className="inline mr-2" size={18} /> Cancel
-                </button>
-                <button
-                  onClick={handleSaveProfile}
-                  disabled={isSaving}
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  <FiCheck size={18} /> {isSaving ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-
-      {/* Followers List Modal */}
-      {showFollowersModal && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-96 overflow-y-auto"
-          >
-            <div className="sticky top-0 bg-white flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">Followers ({followersList.length})</h2>
-              <button
-                onClick={() => {
-                  setShowFollowersModal(false)
-                  if (unsubscribeFollowers) unsubscribeFollowers()
-                  setUnsubscribeFollowers(null)
-                }}
-                className="p-1 hover:bg-gray-100 rounded-lg transition"
-              >
-                <FiX size={24} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {followersList.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No followers yet</p>
-              ) : (
-                followersList.map((follower) => (
-                  <div key={follower.uid} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1">
-                      <Avatar
-                        src={follower.avatar}
-                        name={follower.name}
-                        userId={follower.uid}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{follower.name}</p>
-                        <p className="text-xs text-gray-500 truncate">{follower.email}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => navigate(`/profile/${follower.uid}`)}
-                      className="px-3 py-1 text-sm bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition"
-                    >
-                      View
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-
-      {/* Following List Modal */}
-      {showFollowingModal && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-96 overflow-y-auto"
-          >
-            <div className="sticky top-0 bg-white flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900">Following ({followingList.length})</h2>
-              <button
-                onClick={() => {
-                  setShowFollowingModal(false)
-                  if (unsubscribeFollowing) unsubscribeFollowing()
-                  setUnsubscribeFollowing(null)
-                }}
-                className="p-1 hover:bg-gray-100 rounded-lg transition"
-              >
-                <FiX size={24} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {followingList.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">Not following anyone yet</p>
-              ) : (
-                followingList.map((following) => (
-                  <div key={following.uid} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 flex-1">
-                      <Avatar
-                        src={following.avatar}
-                        name={following.name}
-                        userId={following.uid}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{following.name}</p>
-                        {!following.hideEmail && <p className="text-xs text-gray-500 truncate">{following.email}</p>}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => navigate(`/profile/${following.uid}`)}
-                      className="px-3 py-1 text-sm bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition"
-                    >
-                      View
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-
-      {/* Profile Header Card */}
-      <div className="flex items-center gap-4 mb-4">
+    <div className="min-h-screen bg-gray-50 pt-20 pb-8">
+      <div className="max-w-6xl mx-auto px-4 space-y-4">
         {paramUserId && (
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-            title="Go back"
-          >
-            <FiArrowLeft size={24} className="text-gray-700" />
+          <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-gray-100 transition">
+            <FiArrowLeft size={22} className="text-gray-700" />
           </button>
         )}
-      </div>
 
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-        <Card className="text-center pb-8 relative overflow-hidden">
-          {/* Banner Gradient */}
-          <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-t-xl -m-6 mb-6" />
-
-          {/* Avatar */}
-          <div className="relative mx-auto -mt-16 mb-4 flex justify-center">
-            <div className="relative">
+        <Card className="p-0 overflow-hidden">
+          <div className="h-24 sm:h-32 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-400" />
+          <div className="px-4 sm:px-8 pb-6 -mt-12 text-center">
+            <div className="relative inline-block">
               <Avatar
-                src={user?.avatar}
-                name={user?.name || 'User'}
-                userId={user?.id}
+                src={user.avatar}
+                name={user.name}
+                userId={user.id}
                 size="lg"
                 className="border-4 border-white shadow-lg"
               />
-            </div>
-          </div>
-
-          {/* Name & Title */}
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">{user?.name || 'User'}</h1>
-          </div>
-          {(isOwnProfile || !user?.hideEmail) && <p className="text-gray-600 mb-2">{user?.email}</p>}
-          <p className="text-gray-700 mb-6">{user?.bio || 'No bio yet'}</p>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <button
-              onClick={loadFollowersList}
-              disabled={isLoadingLists}
-              className="bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-xl p-4 transition transform hover:scale-105 border border-blue-200"
-              title="View followers"
-            >
-              <p className="text-3xl font-bold text-blue-600">{followersCount}</p>
-              <p className="text-xs font-medium text-blue-700">Followers</p>
-            </button>
-            <button
-              onClick={loadFollowingList}
-              disabled={isLoadingLists}
-              className="bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-xl p-4 transition transform hover:scale-105 border border-purple-200"
-              title="View following"
-            >
-              <p className="text-3xl font-bold text-purple-600">{followingCount}</p>
-              <p className="text-xs font-medium text-purple-700">Following</p>
-            </button>
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-              <p className="text-3xl font-bold text-green-600">{streakData?.longestStreak || 0}</p>
-              <p className="text-xs font-medium text-green-700">Max Streak</p>
-            </div>
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200">
-              <p className="text-3xl font-bold text-yellow-600">{user?.coins || 0}</p>
-              <p className="text-xs font-medium text-yellow-700">Coins</p>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            {isOwnProfile ? (
-              <Button 
-                variant="primary" 
-                className="flex-1 flex items-center justify-center gap-2"
-                onClick={() => setIsEditing(true)}
-              >
-                <FiEdit2 size={18} /> Edit Profile
-              </Button>
-            ) : (
-              <>
-                <Button 
-                  variant="primary" 
-                  className="flex-1 flex items-center justify-center gap-2"
-                  onClick={() => navigate(`/inbox?user=${paramUserId}`)}
+              {isOwnProfile && (
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="absolute bottom-1 right-1 bg-indigo-600 text-white p-2 rounded-full shadow hover:bg-indigo-700"
                 >
-                  <FiMessageSquare size={18} /> Message
+                  <FiCamera size={14} />
+                </button>
+              )}
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarUpload}
+            />
+
+            <h1 className="text-3xl font-bold text-gray-900 mt-3">{user.name}</h1>
+            <p className="text-gray-700 mt-1">{user.role || user.bio || 'Skill Learner'}</p>
+
+            <div className="flex justify-center items-center gap-2 text-gray-600 mt-1">
+              <FiMapPin size={15} />
+              <span>{user.location || 'Location not set'}</span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <div className="px-3 py-1.5 bg-orange-50 border border-orange-100 rounded-lg text-sm font-semibold text-orange-700">
+                🔥 {streakData?.currentStreak || 0} Day Streak
+              </div>
+              <div className="px-3 py-1.5 bg-yellow-50 border border-yellow-100 rounded-lg text-sm font-semibold text-yellow-700">
+                🪙 {user.coins || 0} Coins
+              </div>
+              <div className="px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-sm font-semibold text-blue-700">
+                👥 {groupsJoined} Groups
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              {isOwnProfile ? (
+                <Button variant="primary" onClick={() => setShowEditModal(true)} className="flex items-center gap-2">
+                  <FiEdit2 size={16} /> Edit Profile
                 </Button>
-                <Button
-                  variant={followRequestStatus === 'accepted' ? 'secondary' : 'outline'}
-                  className="flex-1 flex items-center justify-center gap-2"
-                  onClick={handleFollowRequest}
-                  disabled={isFollowingLoading}
-                >
-                  <FiUserPlus size={18} /> 
-                  {isFollowingLoading ? 'Loading...' : followRequestStatus === 'pending' ? '⏳ Pending' : followRequestStatus === 'accepted' ? '✓ Following' : 'Follow'}
-                </Button>
-              </>
-            )}
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* Bio Section */}
-      {user?.bio && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card>
-            <h2 className="text-lg font-bold text-gray-900 mb-3">About</h2>
-            <p className="text-gray-700 leading-relaxed">{user.bio}</p>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Activity Overview */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <DayStreakWidget />
-          
-          <Card className="bg-gradient-to-br from-pink-500 to-rose-600">
-            <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-black">
-              <FiUsers size={20} /> Community Rank
-            </h3>
-            <div className="flex items-end gap-2 mb-2">
-              <span className="text-4xl font-bold text-black">#12</span>
-              <span className="text-black mb-1">of 250</span>
-            </div>
-            <p className="text-sm text-black">Top 5% contributor 🏆</p>
-          </Card>
-        </div>
-      </motion.div>
-
-      {/* Recent Activity Timeline */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <FiZap className="text-indigo-600" size={22} />
-              Recent Activity
-            </h2>
-            <Badge variant="secondary">{recentActivity.length} achievements</Badge>
-          </div>
-          
-          {recentActivity.length > 0 ? (
-            <div className="space-y-3">
-              {recentActivity.map((activity, idx) => (
-                <motion.div
-                  key={activity.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="flex items-start gap-4 p-4 rounded-lg bg-gradient-to-r from-white to-gray-50 border border-gray-100 hover:shadow-sm transition"
-                >
-                  <div className="text-2xl mt-1">{activity.icon}</div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900">{activity.title}</h3>
-                    <p className="text-sm text-gray-600 mt-0.5">{activity.description}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {new Date(activity.timestamp).toLocaleString([], { 
-                        month: 'short', 
-                        day: 'numeric', 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-gray-500">
-              <FiZap size={48} className="mx-auto mb-2 text-gray-300" />
-              <p>No recent achievements yet. Start exploring and connecting!</p>
-            </div>
-          )}
-        </Card>
-      </motion.div>
-
-      {/* Badges Section */}
-      {earnedBadges.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <Card>
-            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <FiAward className="text-indigo-600" size={22} />
-              Achievements ({earnedBadges.length})
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {earnedBadges.map((badge) => {
-                const Icon = badge.icon
-                return (
-                  <div
-                    key={badge.id}
-                    className={`${badge.bgColor} rounded-lg p-4 border-2 border-transparent hover:border-indigo-300 transition`}
+              ) : (
+                <>
+                  <Button
+                    variant={isFollowing ? 'secondary' : 'primary'}
+                    onClick={handleFollowToggle}
+                    className="flex items-center gap-2"
+                    disabled={isFollowLoading}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg bg-gradient-to-br ${badge.color} text-white`}>
-                        <Icon size={20} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className={`font-bold ${badge.textColor} text-sm mb-0.5`}>
-                          {badge.name}
-                        </h3>
-                        <p className="text-xs text-gray-600">
-                          {badge.description}
-                        </p>
+                    <FiUsers size={16} /> {isFollowLoading ? 'Updating...' : isFollowing ? 'Following' : 'Follow'}
+                  </Button>
+                  <Button variant="outline" onClick={handleMessageClick} className="flex items-center gap-2">
+                    <FiMessageSquare size={16} /> Message
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="py-2">
+          <div className="flex gap-2 overflow-x-auto">
+            {[
+              { key: 'profile', label: 'Profile' },
+              { key: 'posts', label: `Posts (${userPosts.length})` },
+              { key: 'badges', label: `Badges (${effectiveBadges.length})` },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition ${
+                  activeTab === tab.key
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        {activeTab === 'profile' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="lg:col-span-2">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Skills I Teach</h2>
+              <div className="flex flex-wrap gap-2 mb-6">
+                {(user.skills?.teaching || []).length > 0 ? (
+                  user.skills.teaching.map((skill) => (
+                    <Badge key={`teach-${skill}`} variant="primary">{skill}</Badge>
+                  ))
+                ) : (
+                  <p className="text-gray-500">No teaching skills added yet.</p>
+                )}
+              </div>
+
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Skills I Want to Learn</h2>
+              <div className="flex flex-wrap gap-2">
+                {(user.skills?.learning || []).length > 0 ? (
+                  user.skills.learning.map((skill) => (
+                    <Badge key={`learn-${skill}`} variant="success">{skill}</Badge>
+                  ))
+                ) : (
+                  <p className="text-gray-500">No learning skills added yet.</p>
+                )}
+              </div>
+            </Card>
+
+            <div className="space-y-4">
+              <Card>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <button onClick={() => setShowFollowersModal(true)} className="p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition">
+                    <p className="text-2xl font-bold text-gray-900">{followersCount}</p>
+                    <p className="text-sm text-gray-600">Followers</p>
+                  </button>
+                  <button onClick={() => setShowFollowingModal(true)} className="p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition">
+                    <p className="text-2xl font-bold text-gray-900">{followingCount}</p>
+                    <p className="text-sm text-gray-600">Following</p>
+                  </button>
+                  <div className="p-3 rounded-lg bg-gray-50">
+                    <p className="text-2xl font-bold text-gray-900">{groupsJoined}</p>
+                    <p className="text-sm text-gray-600">Groups</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-50">
+                    <p className="text-2xl font-bold text-gray-900">{user.coins || 0}</p>
+                    <p className="text-sm text-gray-600">Coins</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card>
+                <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <FiUsers size={18} /> Community Rank
+                </h3>
+                <p className="text-3xl font-bold text-indigo-700">#{rankMetrics.rank}</p>
+                <p className="text-sm text-gray-600 mb-4">of {rankMetrics.rankedTotal}</p>
+
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
+                  <div
+                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
+                    style={{ width: `${rankMetrics.progressToNext}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-gray-700">Level {rankMetrics.level} Learner</span>
+                  <span className="text-gray-600">Next Lv: {rankMetrics.progressToNext}%</span>
+                </div>
+              </Card>
+            </div>
+
+            <Card className="lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <FiZap className="text-indigo-600" size={20} /> Recent Activity
+                </h3>
+                <Badge variant="secondary">{recentActivity.length} items</Badge>
+              </div>
+
+              {recentActivity.length > 0 ? (
+                <div className="space-y-3">
+                  {recentActivity.map((activity) => (
+                    <div key={activity.id} className="p-3 border border-gray-100 rounded-lg bg-white">
+                      <div className="flex items-start gap-3">
+                        <div className="text-xl">{activity.icon || '⚡'}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900">{activity.title}</p>
+                          <p className="text-sm text-gray-600">{activity.description}</p>
+                          <p className="text-xs text-gray-500 mt-1">{formatDateTime(activity.timestamp)}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No activity yet.</p>
+              )}
+            </Card>
 
-            {/* In Progress Badges */}
-            {inProgressBadges.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">In Progress</h3>
-                <div className="space-y-2">
-                  {inProgressBadges.slice(0, 3).map((badge) => {
-                    const Icon = badge.icon
-                    return (
-                      <div key={badge.id} className="flex items-center gap-3">
-                        <div className={`p-1.5 rounded-lg ${badge.bgColor}`}>
-                          <Icon size={16} className={badge.textColor} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-gray-700">{badge.name}</span>
-                            <span className="text-xs text-gray-500">{Math.round(badge.progressPercentage)}%</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-1.5">
-                            <div
-                              className={`h-1.5 rounded-full bg-gradient-to-r ${badge.color} transition-all duration-300`}
-                              style={{ width: `${badge.progressPercentage}%` }}
-                            />
-                          </div>
-                        </div>
+            <Card>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <FiAward size={18} className="text-indigo-600" /> Achievements
+                </h3>
+                <button className="text-sm text-indigo-600 font-semibold" onClick={() => setActiveTab('badges')}>View all</button>
+              </div>
+              <div className="space-y-2">
+                {effectiveBadges.slice(0, 3).map((item) => (
+                  <div key={item.id} className="p-2 rounded-lg bg-gray-50 border border-gray-100">
+                    <p className="font-semibold text-gray-900">{item.icon} {item.name}</p>
+                    <p className="text-xs text-gray-600">{item.description}</p>
+                  </div>
+                ))}
+                {effectiveBadges.length === 0 && <p className="text-gray-500">No badges unlocked yet.</p>}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'posts' && (
+          <Card>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Posts</h2>
+            {userPosts.length === 0 ? (
+              <p className="text-gray-500">No posts yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {userPosts.map((post) => (
+                  <button
+                    key={post.id}
+                    onClick={() => {
+                      setSelectedPost(post)
+                      setShowPostModal(true)
+                    }}
+                    className="w-full text-left p-4 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <p className="font-semibold text-gray-900 truncate">{post.content?.slice(0, 80) || 'Post'}</p>
+                      <span className="text-xs text-gray-500 whitespace-nowrap">{formatDateTime(post.createdAt)}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 line-clamp-2">{post.content}</p>
+                    <div className="mt-2 text-xs text-gray-500">
+                      Likes {post.likesCount || 0} • Comments {post.commentsCount || 0}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {activeTab === 'badges' && (
+          <Card>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Badges & Achievements</h2>
+            {effectiveBadges.length === 0 ? (
+              <p className="text-gray-500">No badges unlocked yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+                {effectiveBadges.map((badge) => (
+                  <div key={badge.id} className="rounded-lg p-4 border border-gray-100 bg-gray-50">
+                    <p className="font-semibold text-gray-900">{badge.icon} {badge.name}</p>
+                    <p className="text-sm text-gray-600 mt-1">{badge.description}</p>
+                    {badge.earnedAt && (
+                      <p className="text-xs text-gray-500 mt-2">Earned {formatDateTime(badge.earnedAt)}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {badgeStats.inProgressBadges.length > 0 && (
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-3">In Progress</h3>
+                <div className="space-y-3">
+                  {badgeStats.inProgressBadges.slice(0, 6).map((item) => (
+                    <div key={item.id}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="font-semibold text-gray-700">{item.name}</span>
+                        <span className="text-gray-600">{Math.round(item.progressPercentage)}%</span>
                       </div>
-                    )
-                  })}
+                      <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
+                          style={{ width: `${item.progressPercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
           </Card>
-        </motion.div>
-      )}
-
-      {/* Skills Section */}
-      {user?.skills?.teaching && user.skills.teaching.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Skills Teaching</h2>
-            <div className="flex flex-wrap gap-2">
-              {user.skills.teaching.map((skill) => (
-                <Badge key={skill} variant="primary">
-                  {skill}
-                </Badge>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {user?.skills?.learning && user.skills.learning.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <Card>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Skills Learning</h2>
-            <div className="flex flex-wrap gap-2">
-              {user.skills.learning.map((skill) => (
-                <Badge key={skill} variant="success">
-                  {skill}
-                </Badge>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Groups Section */}
-      {user?.groups && user.groups > 0 && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <FiUsers size={20} /> Groups
-              </h2>
-              <span className="text-sm font-semibold text-indigo-600">{user.groups} groups</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {['Web Dev Community', 'React Learners', 'JavaScript Masters', 'UI/UX Design', 'DevOps Team', 'Data Science']
-                .slice(0, user.groups)
-                .map((group) => (
-                  <div key={group} className="p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                    <p className="text-sm font-semibold text-gray-900">{group}</p>
-                  </div>
-                ))}
-            </div>
-          </Card>
-        </motion.div>
-      )}
+        )}
       </div>
+
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Edit Profile</h2>
+              <button onClick={() => setShowEditModal(false)} className="p-1 rounded hover:bg-gray-100">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={editForm.name}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="Name"
+              />
+              <input
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={editForm.role}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value }))}
+                placeholder="Role"
+              />
+              <input
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={editForm.location}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, location: e.target.value }))}
+                placeholder="Location"
+              />
+              <textarea
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={editForm.bio}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, bio: e.target.value }))}
+                placeholder="Bio"
+              />
+              <textarea
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={editForm.teachSkillsText}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, teachSkillsText: e.target.value }))}
+                placeholder="Skills I teach (comma separated)"
+              />
+              <textarea
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                value={editForm.learnSkillsText}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, learnSkillsText: e.target.value }))}
+                placeholder="Skills I want to learn (comma separated)"
+              />
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Button>
+              <Button variant="primary" onClick={handleSaveProfile} disabled={isSaving} className="flex items-center gap-2">
+                <FiCheck size={16} /> {isSaving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {showPostModal && selectedPost && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <FiFileText size={18} /> Post Details
+              </h3>
+              <button onClick={() => setShowPostModal(false)} className="p-1 rounded hover:bg-gray-100">
+                <FiX size={20} />
+              </button>
+            </div>
+            <p className="text-gray-900 whitespace-pre-wrap">{selectedPost.content}</p>
+            {(selectedPost.image || selectedPost.video) && (
+              <div className="mt-3">
+                {selectedPost.image && <img src={selectedPost.image} alt="Post" className="max-h-80 rounded-lg border" />}
+                {selectedPost.video && (
+                  <video src={selectedPost.video} controls className="w-full max-h-80 rounded-lg border" />
+                )}
+              </div>
+            )}
+            <div className="text-xs text-gray-500 mt-3">
+              {formatDateTime(selectedPost.createdAt)} • Likes {selectedPost.likesCount || 0} • Comments {selectedPost.commentsCount || 0}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {showFollowersModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-lg">Followers ({followersList.length})</h3>
+              <button onClick={() => setShowFollowersModal(false)} className="p-1 rounded hover:bg-gray-100"><FiX size={20} /></button>
+            </div>
+            <div className="space-y-2">
+              {followersList.length === 0 ? <p className="text-gray-500">No followers yet.</p> : followersList.map((item) => (
+                <button
+                  key={item.uid}
+                  onClick={() => {
+                    setShowFollowersModal(false)
+                    navigate(`/profile/${item.uid}`)
+                  }}
+                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 text-left"
+                >
+                  <Avatar src={item.avatar} name={item.name} userId={item.uid} size="sm" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{item.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{item.email || ''}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {showFollowingModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-lg">Following ({followingList.length})</h3>
+              <button onClick={() => setShowFollowingModal(false)} className="p-1 rounded hover:bg-gray-100"><FiX size={20} /></button>
+            </div>
+            <div className="space-y-2">
+              {followingList.length === 0 ? <p className="text-gray-500">Not following anyone yet.</p> : followingList.map((item) => (
+                <button
+                  key={item.uid}
+                  onClick={() => {
+                    setShowFollowingModal(false)
+                    navigate(`/profile/${item.uid}`)
+                  }}
+                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 text-left"
+                >
+                  <Avatar src={item.avatar} name={item.name} userId={item.uid} size="sm" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{item.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{item.email || ''}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
