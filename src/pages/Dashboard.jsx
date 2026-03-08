@@ -381,28 +381,9 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Stats */}
-        <Card className="lg:col-span-1">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Your Stats</h2>
-          <div className="space-y-4">
-            <div className="p-3 bg-indigo-50 rounded-lg">
-              <p className="text-xs text-gray-600 uppercase">Total Coins</p>
-              <p className="text-2xl font-bold text-indigo-600">{stats.coins}</p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-lg">
-              <p className="text-xs text-gray-600 uppercase">Sessions Completed</p>
-              <p className="text-2xl font-bold text-green-600">{stats.sessionsCompleted}</p>
-            </div>
-            <div className="p-3 bg-purple-50 rounded-lg">
-              <p className="text-xs text-gray-600 uppercase">Skills Teaching</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.skillsTeaching}</p>
-            </div>
-          </div>
-        </Card>
-
+      <div className="grid grid-cols-1 gap-6">
         {/* Welcome Message */}
-        <Card className="lg:col-span-2">
+        <Card>
           <h2 className="text-lg font-bold text-gray-900 mb-4">Welcome to SkillEx! 👋</h2>
           <p className="text-gray-600 mb-4">
             Connect with skilled professionals and exchange knowledge. Browse our community in the Explore section to find people with skills you want to learn.
