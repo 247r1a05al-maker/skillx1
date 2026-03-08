@@ -246,9 +246,9 @@ const Inbox = () => {
   }
 
   return (
-    <div className="w-full h-[calc(100vh-80px)] flex gap-4 bg-gray-50 p-4">
+    <div className="w-full h-[calc(100vh-80px)] flex gap-0 bg-gray-50">
       {/* Conversations List */}
-      <Card className="w-full lg:w-80 hidden lg:flex flex-col p-0 overflow-hidden shadow-md bg-white border border-gray-200 rounded-lg">
+      <Card className="w-full lg:w-80 hidden lg:flex flex-col p-0 overflow-hidden shadow-none bg-white border-r border-gray-200 rounded-none">
         {/* Search */}
         <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10">
           <div className="relative group">
@@ -385,7 +385,7 @@ const Inbox = () => {
 
       {/* Chat Area */}
       {selectedConversation ? (
-        <Card className="flex-1 p-0 overflow-hidden flex flex-col h-full shadow-lg bg-white border border-gray-200 rounded-lg">
+        <Card className="flex-1 p-0 overflow-hidden flex flex-col h-full shadow-none bg-white border-l-0 border border-gray-200 rounded-none">
           {/* Chat Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white sticky top-0 text-gray-900 shadow-sm">
             <div className="flex items-center gap-3">
@@ -608,7 +608,7 @@ const Inbox = () => {
           </div>
         </Card>
       ) : (
-        <div className="flex-1 hidden lg:flex items-center justify-center bg-white p-12 overflow-y-auto border-l border-gray-200">
+        <div className="flex-1 hidden lg:flex items-center justify-center bg-white p-12 overflow-y-auto">
           <div className="text-center max-w-md">
             <p className="text-gray-400 text-lg font-medium mb-2">📬 No Conversation Selected</p>
             <p className="text-gray-500 text-sm">Select a conversation from the list to start chatting</p>
