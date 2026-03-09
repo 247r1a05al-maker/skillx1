@@ -438,7 +438,7 @@ const Certificates = () => {
         <h3 className="text-lg font-bold theme-text-primary mb-4 flex items-center gap-2">
           <FiCheckCircle size={20} /> Redeem Code
         </h3>
-        <p className="text-sm text-gray-600 mb-4">Enter an 8-digit code to claim <span className="font-bold">100 coins</span>. Each user can redeem a code only once.</p>
+        <p className="text-sm text-gray-600 mb-4">Enter an 8-digit code to claim coins. Each user can redeem a code only once.</p>
 
         <div className="flex gap-3">
           <input

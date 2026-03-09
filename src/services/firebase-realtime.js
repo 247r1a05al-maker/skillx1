@@ -16,6 +16,9 @@ import { realtimeDb } from '../config/firebase'
 const DEFAULT_CERTIFICATE_COUPON_CODE = '48291357'
 const DEFAULT_CERTIFICATE_COUPON_COINS = 100
 
+const DEFAULT_BIG_COUPON_CODE = '73910462'
+const DEFAULT_BIG_COUPON_COINS = 2000
+
 class FirebaseRealtimeService {
   constructor() {
     this.listeners = new Map()
@@ -2966,10 +2969,20 @@ class FirebaseRealtimeService {
   // ============================================
 
   async ensureCertificateCouponCode() {
-    return this.ensureCouponCode(DEFAULT_CERTIFICATE_COUPON_CODE, DEFAULT_CERTIFICATE_COUPON_COINS, {
-      title: 'Certificate Coupon',
-      description: 'Redeemable once per user for +100 coins',
-    })
+    const results = []
+    results.push(
+      await this.ensureCouponCode(DEFAULT_CERTIFICATE_COUPON_CODE, DEFAULT_CERTIFICATE_COUPON_COINS, {
+        title: 'Certificate Coupon',
+        description: 'Redeemable once per user for +100 coins',
+      })
+    )
+    results.push(
+      await this.ensureCouponCode(DEFAULT_BIG_COUPON_CODE, DEFAULT_BIG_COUPON_COINS, {
+        title: 'Mega Coupon',
+        description: 'Redeemable once per user for +2000 coins',
+      })
+    )
+    return { success: true, codes: results.filter(Boolean) }
   }
 
   async ensureCouponCode(code, coins, metadata = {}) {
