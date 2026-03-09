@@ -19,6 +19,23 @@ const DEFAULT_CERTIFICATE_COUPON_COINS = 100
 const DEFAULT_BIG_COUPON_CODE = '73910462'
 const DEFAULT_BIG_COUPON_COINS = 2000
 
+const LOCAL_COUPONS = {
+  [DEFAULT_CERTIFICATE_COUPON_CODE]: {
+    code: DEFAULT_CERTIFICATE_COUPON_CODE,
+    coins: DEFAULT_CERTIFICATE_COUPON_COINS,
+    title: 'Certificate Coupon',
+    description: 'Redeemable once per user for +100 coins',
+    active: true,
+  },
+  [DEFAULT_BIG_COUPON_CODE]: {
+    code: DEFAULT_BIG_COUPON_CODE,
+    coins: DEFAULT_BIG_COUPON_COINS,
+    title: 'Mega Coupon',
+    description: 'Redeemable once per user for +2000 coins',
+    active: true,
+  },
+}
+
 class FirebaseRealtimeService {
   constructor() {
     this.listeners = new Map()
@@ -3016,16 +3033,27 @@ class FirebaseRealtimeService {
 
     try {
       // Validate coupon exists and is active
-      const couponRef = ref(realtimeDb, `couponCodes/${normalizedCode}`)
-      const couponSnap = await get(couponRef)
-      if (!couponSnap.exists()) return { success: false, error: 'Invalid code' }
+      // Prefer Firebase-backed coupons, but fall back to built-in codes if `couponCodes/` isn't accessible.
+      let coupon = null
+      try {
+        const couponRef = ref(realtimeDb, `couponCodes/${normalizedCode}`)
+        const couponSnap = await get(couponRef)
+        if (couponSnap.exists()) coupon = couponSnap.val() || null
+      } catch (e) {
+        // Ignore and fall back to LOCAL_COUPONS
+        coupon = null
+      }
 
-      const coupon = couponSnap.val() || {}
+      if (!coupon) coupon = LOCAL_COUPONS[normalizedCode] || null
+      if (!coupon) return { success: false, error: 'Invalid code' }
       if (coupon.active === false) return { success: false, error: 'This code has expired' }
       const coins = Number(coupon.coins) || DEFAULT_CERTIFICATE_COUPON_COINS
 
-      // Atomic: mark redeemed + increment coins in the same transaction
       const userRef = ref(realtimeDb, `users/${userId}`)
+      const userSnap = await get(userRef)
+      if (!userSnap.exists()) return { success: false, error: 'User not found' }
+
+      // Atomic: mark redeemed + increment coins in the same transaction
       const tx = await runTransaction(
         userRef,
         (current) => {
