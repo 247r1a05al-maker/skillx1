@@ -360,6 +360,19 @@ const Profile = () => {
     )
   }
 
+  const skillVisual = (skill) => {
+    const value = (skill || '').toString()
+    const hash = value.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+    const stars = 3 + (hash % 3) // 3..5
+    const pct = Math.max(45, Math.min(95, Math.round((stars / 5) * 100)))
+    const barStyles = [
+      'bg-gradient-to-r from-indigo-500 to-purple-500',
+      'bg-gradient-to-r from-emerald-500 to-teal-500',
+      'bg-gradient-to-r from-sky-500 to-indigo-500',
+    ]
+    return { stars, pct, barClass: barStyles[hash % barStyles.length] }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pt-20 pb-8">
       <div className="max-w-6xl mx-auto px-4 space-y-4">
@@ -370,20 +383,23 @@ const Profile = () => {
         )}
 
         <Card className="p-0 overflow-hidden">
-          <div className="h-24 sm:h-32 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-400" />
-          <div className="px-4 sm:px-8 pb-6 -mt-12 text-center">
+          <div className="h-28 sm:h-36 bg-gradient-to-r from-indigo-500 via-purple-500 to-blue-400" />
+          <div className="px-4 sm:px-8 pb-6 -mt-14 text-center">
             <div className="relative inline-block">
-              <Avatar
-                src={user.avatar}
-                name={user.name}
-                userId={user.id}
-                size="lg"
-                className="border-4 border-white shadow-lg"
-              />
+              <div className="rounded-full bg-white p-1 shadow-xl">
+                <Avatar
+                  src={user.avatar}
+                  name={user.name}
+                  userId={user.id}
+                  size="lg"
+                  className="border-4 border-white"
+                />
+              </div>
               {isOwnProfile && (
                 <button
                   onClick={() => avatarInputRef.current?.click()}
-                  className="absolute bottom-1 right-1 bg-indigo-600 text-white p-2 rounded-full shadow hover:bg-indigo-700"
+                  className="absolute bottom-2 right-2 bg-indigo-600 text-white p-2 rounded-full shadow hover:bg-indigo-700"
+                  aria-label="Change avatar"
                 >
                   <FiCamera size={14} />
                 </button>
@@ -397,8 +413,8 @@ const Profile = () => {
               onChange={handleAvatarUpload}
             />
 
-            <h1 className="text-3xl font-bold text-gray-900 mt-3">{user.name}</h1>
-            <p className="text-gray-700 mt-1">{user.role || user.bio || 'Skill Learner'}</p>
+            <h1 className="text-3xl font-bold text-gray-900 mt-4">{user.name}</h1>
+            <p className="text-gray-700 mt-1">{user.role || user.title || user.bio || 'Skill Learner'}</p>
 
             <div className="flex justify-center items-center gap-2 text-gray-600 mt-1">
               <FiMapPin size={15} />
@@ -417,94 +433,137 @@ const Profile = () => {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap justify-center gap-3">
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
               {isOwnProfile ? (
-                <Button variant="primary" onClick={() => setShowEditModal(true)} className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  onClick={() => setShowEditModal(true)}
+                  className="flex items-center justify-center gap-2 min-w-[180px]"
+                >
                   <FiEdit2 size={16} /> Edit Profile
                 </Button>
               ) : (
-                <>
+                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md justify-center">
                   <Button
                     variant={isFollowing ? 'secondary' : 'primary'}
                     onClick={handleFollowToggle}
-                    className="flex items-center gap-2"
+                    className="flex-1 flex items-center justify-center gap-2"
                     disabled={isFollowLoading}
                   >
                     <FiUsers size={16} /> {isFollowLoading ? 'Updating...' : isFollowing ? 'Following' : 'Follow'}
                   </Button>
-                  <Button variant="outline" onClick={handleMessageClick} className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleMessageClick}
+                    className="flex-1 flex items-center justify-center gap-2"
+                  >
                     <FiMessageSquare size={16} /> Message
                   </Button>
-                </>
+                </div>
               )}
             </div>
           </div>
         </Card>
 
-        <Card className="py-2">
-          <div className="flex gap-2 overflow-x-auto">
+        <Card className="p-3">
+          <div className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 p-2">
+            <div className="flex gap-2 overflow-x-auto">
             {[
-              { key: 'profile', label: 'Profile' },
-              { key: 'posts', label: `Posts (${userPosts.length})` },
-              { key: 'badges', label: `Badges (${effectiveBadges.length})` },
+              { key: 'profile', label: 'Profile', icon: FiUsers },
+              { key: 'posts', label: `Posts (${userPosts.length})`, icon: FiFileText },
+              { key: 'badges', label: `Badges (${effectiveBadges.length})`, icon: FiAward },
             ].map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition flex items-center gap-2 ${
                   activeTab === tab.key
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-white text-indigo-700 shadow'
+                    : 'text-white/90 hover:bg-white/10'
                 }`}
               >
-                {tab.label}
+                <tab.icon size={16} /> {tab.label}
               </button>
             ))}
+            </div>
           </div>
         </Card>
 
         {activeTab === 'profile' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <Card className="lg:col-span-2">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Skills I Teach</h2>
-              <div className="flex flex-wrap gap-2 mb-6">
-                {(user.skills?.teaching || []).length > 0 ? (
-                  user.skills.teaching.map((skill) => (
-                    <Badge key={`teach-${skill}`} variant="primary">{skill}</Badge>
-                  ))
-                ) : (
-                  <p className="text-gray-500">No teaching skills added yet.</p>
-                )}
-              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Skills | Teach</h2>
 
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Skills I Want to Learn</h2>
-              <div className="flex flex-wrap gap-2">
-                {(user.skills?.learning || []).length > 0 ? (
-                  user.skills.learning.map((skill) => (
-                    <Badge key={`learn-${skill}`} variant="success">{skill}</Badge>
-                  ))
-                ) : (
-                  <p className="text-gray-500">No learning skills added yet.</p>
-                )}
-              </div>
+              {(user.skills?.teaching || []).length > 0 ? (
+                <div className="space-y-3 mb-6">
+                  {(user.skills?.teaching || []).slice(0, 6).map((skill) => {
+                    const v = skillVisual(skill)
+                    return (
+                      <div key={`teach-${skill}`} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-semibold text-gray-900 truncate">{skill}</p>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <span
+                                key={`${skill}-star-${i}`}
+                                className={i < v.stars ? 'text-yellow-400' : 'text-gray-300'}
+                                aria-hidden
+                              >
+                                ★
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className={`h-full ${v.barClass}`} style={{ width: `${v.pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-gray-500 mb-6">No teaching skills added yet.</p>
+              )}
+
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Skills | I Want to Learn</h2>
+              {(user.skills?.learning || []).length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {(user.skills?.learning || []).slice(0, 10).map((skill) => (
+                    <span
+                      key={`learn-${skill}`}
+                      className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-700"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No learning skills added yet.</p>
+              )}
             </Card>
 
             <div className="space-y-4">
               <Card>
                 <div className="grid grid-cols-2 gap-4 text-center">
-                  <button onClick={() => setShowFollowersModal(true)} className="p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition">
+                  <button
+                    onClick={() => setShowFollowersModal(true)}
+                    className="p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition"
+                  >
                     <p className="text-2xl font-bold text-gray-900">{followersCount}</p>
                     <p className="text-sm text-gray-600">Followers</p>
                   </button>
-                  <button onClick={() => setShowFollowingModal(true)} className="p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition">
+                  <button
+                    onClick={() => setShowFollowingModal(true)}
+                    className="p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition"
+                  >
                     <p className="text-2xl font-bold text-gray-900">{followingCount}</p>
                     <p className="text-sm text-gray-600">Following</p>
                   </button>
-                  <div className="p-3 rounded-lg bg-gray-50">
+                  <div className="p-4 rounded-xl bg-gray-50">
                     <p className="text-2xl font-bold text-gray-900">{groupsJoined}</p>
                     <p className="text-sm text-gray-600">Groups</p>
                   </div>
-                  <div className="p-3 rounded-lg bg-gray-50">
+                  <div className="p-4 rounded-xl bg-gray-50">
                     <p className="text-2xl font-bold text-gray-900">{user.coins || 0}</p>
                     <p className="text-sm text-gray-600">Coins</p>
                   </div>
@@ -512,11 +571,23 @@ const Profile = () => {
               </Card>
 
               <Card>
-                <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
                   <FiUsers size={18} /> Community Rank
                 </h3>
                 <p className="text-3xl font-bold text-indigo-700">#{rankMetrics.rank}</p>
-                <p className="text-sm text-gray-600 mb-4">of {rankMetrics.rankedTotal}</p>
+                <p className="text-sm text-gray-600 mb-3">of {rankMetrics.rankedTotal}</p>
+
+                <div className="flex items-center gap-1 mb-3" aria-hidden>
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const filled = i < Math.max(1, Math.round(rankMetrics.progressToNext / 9))
+                    return (
+                      <span
+                        key={`hm-${i}`}
+                        className={`w-3 h-3 rounded-sm border ${filled ? 'bg-green-400 border-green-300' : 'bg-green-100 border-green-100'}`}
+                      />
+                    )
+                  })}
+                </div>
 
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
                   <div
@@ -542,13 +613,17 @@ const Profile = () => {
               {recentActivity.length > 0 ? (
                 <div className="space-y-3">
                   {recentActivity.map((activity) => (
-                    <div key={activity.id} className="p-3 border border-gray-100 rounded-lg bg-white">
+                    <div key={activity.id} className="p-4 border border-gray-100 rounded-xl bg-white">
                       <div className="flex items-start gap-3">
-                        <div className="text-xl">{activity.icon || '⚡'}</div>
+                        <div className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center text-lg">
+                          {activity.icon || '⚡'}
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900">{activity.title}</p>
-                          <p className="text-sm text-gray-600">{activity.description}</p>
-                          <p className="text-xs text-gray-500 mt-1">{formatDateTime(activity.timestamp)}</p>
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="font-semibold text-gray-900 truncate">{activity.title}</p>
+                            <p className="text-xs text-gray-500 whitespace-nowrap">{formatDateTime(activity.timestamp)}</p>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-0.5">{activity.description}</p>
                         </div>
                       </div>
                     </div>
@@ -559,23 +634,53 @@ const Profile = () => {
               )}
             </Card>
 
-            <Card>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <FiAward size={18} className="text-indigo-600" /> Achievements
-                </h3>
-                <button className="text-sm text-indigo-600 font-semibold" onClick={() => setActiveTab('badges')}>View all</button>
-              </div>
-              <div className="space-y-2">
-                {effectiveBadges.slice(0, 3).map((item) => (
-                  <div key={item.id} className="p-2 rounded-lg bg-gray-50 border border-gray-100">
-                    <p className="font-semibold text-gray-900">{item.icon} {item.name}</p>
-                    <p className="text-xs text-gray-600">{item.description}</p>
+            <div className="space-y-4">
+              <Card>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <FiAward size={18} className="text-indigo-600" /> Achievements
+                  </h3>
+                  <button className="text-sm text-indigo-600 font-semibold" onClick={() => setActiveTab('badges')}>View all</button>
+                </div>
+
+                {effectiveBadges.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    {effectiveBadges.slice(0, 3).map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className={`rounded-xl p-3 text-white border border-white/20 shadow-sm ${
+                          idx === 0
+                            ? 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                            : idx === 1
+                              ? 'bg-gradient-to-br from-purple-500 to-pink-500'
+                              : 'bg-gradient-to-br from-amber-400 to-orange-500'
+                        }`}
+                      >
+                        <div className="text-2xl">{item.icon || '🏆'}</div>
+                        <p className="text-xs font-semibold mt-2 leading-tight line-clamp-2">{item.name}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {effectiveBadges.length === 0 && <p className="text-gray-500">No badges unlocked yet.</p>}
-              </div>
-            </Card>
+                ) : (
+                  <p className="text-gray-500">No badges unlocked yet.</p>
+                )}
+              </Card>
+
+              <Card>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700">Recent activity</p>
+                    <p className="text-xs text-gray-500">Points</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                      🪙
+                    </div>
+                    <p className="text-2xl font-bold text-gray-900">{rankMetrics.totalPoints}</p>
+                  </div>
+                </div>
+              </Card>
+            </div>
           </div>
         )}
 
