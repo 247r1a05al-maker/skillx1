@@ -77,7 +77,7 @@ const Explore = () => {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSkill, setSelectedSkill] = useState('')
-  const [onlineFilter, setOnlineFilter] = useState('online') // matches screenshot
+  const [onlineFilter, setOnlineFilter] = useState('all')
   const [sortBy, setSortBy] = useState('most_active')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 

@@ -340,9 +340,11 @@ class FirebaseRealtimeService {
       users = []
       if (snapshot.exists()) {
         snapshot.forEach((childSnapshot) => {
+          const data = childSnapshot.val() || {}
           users.push({
+            ...data,
+            // Ensure Firebase key is the canonical id (do not allow stored `id` to overwrite it)
             id: childSnapshot.key,
-            ...childSnapshot.val(),
           })
         })
       }
@@ -390,8 +392,9 @@ class FirebaseRealtimeService {
     const unsubscribeUser = onValue(userRef, (snapshot) => {
       if (snapshot.exists()) {
         userData = {
+          ...(snapshot.val() || {}),
+          // Ensure Firebase key is the canonical id
           id: userId,
-          ...snapshot.val(),
         }
         // Emit combined data with status
         callback({
