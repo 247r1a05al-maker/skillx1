@@ -58,9 +58,9 @@ const Certificates = () => {
   const [searchSuggestions, setSearchSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [sortBy, setSortBy] = useState('rating')
-  const [verifyNumber, setVerifyNumber] = useState('')
-  const [verificationResult, setVerificationResult] = useState(null)
-  const [isVerifying, setIsVerifying] = useState(false)
+  const [couponCode, setCouponCode] = useState('')
+  const [couponResult, setCouponResult] = useState(null)
+  const [isRedeeming, setIsRedeeming] = useState(false)
 
   // Load user's earned certificates
   useEffect(() => {
@@ -74,19 +74,32 @@ const Certificates = () => {
     return () => unsubscribe?.()
   }, [authUser])
 
-  // Verify certificate
-  const handleVerifyCertificate = async () => {
-    if (!verifyNumber.trim()) return
-    
-    setIsVerifying(true)
+  // Ensure the default coupon exists (idempotent)
+  useEffect(() => {
+    if (!authUser) return
+    firebaseRealtime.ensureCertificateCouponCode?.().catch(() => {})
+  }, [authUser])
+
+  // Redeem coupon code for coins (one-time per user)
+  const handleRedeemCoupon = async () => {
+    if (!authUser) return
+
+    const userId = authUser.uid || authUser.id
+    const normalized = (couponCode || '').toString().replace(/\D/g, '').slice(0, 8)
+    if (normalized.length !== 8) {
+      setCouponResult({ success: false, error: 'Enter an 8-digit code' })
+      return
+    }
+
+    setIsRedeeming(true)
     try {
-      const result = await firebaseRealtime.verifyCertificate(verifyNumber)
-      setVerificationResult(result)
+      const result = await firebaseRealtime.redeemCouponCode(userId, normalized)
+      setCouponResult(result)
     } catch (error) {
-      console.error('Error verifying certificate:', error)
-      setVerificationResult(null)
+      console.error('Error redeeming coupon:', error)
+      setCouponResult({ success: false, error: 'Something went wrong. Try again.' })
     } finally {
-      setIsVerifying(false)
+      setIsRedeeming(false)
     }
   }
 
@@ -420,31 +433,38 @@ const Certificates = () => {
         </motion.div>
       )}
 
-      {/* Certificate Verification Section */}
+      {/* Coupon Redemption Section */}
       <Card className="bg-gradient-to-r from-purple-50 to-indigo-50">
         <h3 className="text-lg font-bold theme-text-primary mb-4 flex items-center gap-2">
-          <FiCheckCircle size={20} /> Verify Certificate
+          <FiCheckCircle size={20} /> Redeem Code
         </h3>
-        <p className="text-sm text-gray-600 mb-4">Enter a certificate number to verify its authenticity</p>
-        
+        <p className="text-sm text-gray-600 mb-4">Enter an 8-digit code to claim <span className="font-bold">100 coins</span>. Each user can redeem a code only once.</p>
+
         <div className="flex gap-3">
           <input
             type="text"
-            placeholder="Enter certificate number (e.g., CERT-1234567890-ABC123)"
-            value={verifyNumber}
-            onChange={(e) => setVerifyNumber(e.target.value)}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={8}
+            placeholder="Enter 8-digit code"
+            value={couponCode}
+            onChange={(e) => {
+              const next = (e.target.value || '').replace(/\D/g, '').slice(0, 8)
+              setCouponCode(next)
+              if (couponResult) setCouponResult(null)
+            }}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <Button
             variant="primary"
-            onClick={handleVerifyCertificate}
-            disabled={isVerifying || !verifyNumber.trim()}
+            onClick={handleRedeemCoupon}
+            disabled={isRedeeming || couponCode.trim().length !== 8}
           >
-            {isVerifying ? 'Verifying...' : 'Verify'}
+            {isRedeeming ? 'Checking...' : 'Claim'}
           </Button>
         </div>
 
-        {verificationResult && (
+        {couponResult?.success ? (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -453,27 +473,25 @@ const Certificates = () => {
             <div className="flex items-start gap-3">
               <FiCheckCircle className="text-green-600 flex-shrink-0 mt-1" size={24} />
               <div className="flex-1">
-                <h4 className="font-bold text-green-900 mb-2">✓ Certificate Verified!</h4>
+                <h4 className="font-bold text-green-900 mb-2">✓ Code Redeemed!</h4>
                 <div className="space-y-1 text-sm text-gray-700">
-                  <p><span className="font-semibold">Skill:</span> {verificationResult.skillName}</p>
-                  <p><span className="font-semibold">Issued by:</span> {verificationResult.issuerName}</p>
-                  <p><span className="font-semibold">Date:</span> {formatDate(verificationResult.issuedAt)}</p>
-                  <p><span className="font-semibold">Certificate #:</span> {verificationResult.certificateNumber}</p>
+                  <p><span className="font-semibold">Coins added:</span> +{couponResult.coinsAwarded}</p>
+                  <p><span className="font-semibold">New balance:</span> {couponResult.newBalance}</p>
                 </div>
               </div>
             </div>
           </motion.div>
-        )}
+        ) : null}
 
-        {verificationResult === null && verifyNumber && !isVerifying && (
+        {couponResult?.success === false ? (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="mt-4 p-4 bg-red-50 rounded-lg border-2 border-red-200"
           >
-            <p className="text-red-700 text-sm">❌ Certificate not found. Please check the number and try again.</p>
+            <p className="text-red-700 text-sm">❌ {couponResult.error || 'Invalid code. Please try again.'}</p>
           </motion.div>
-        )}
+        ) : null}
       </Card>
 
       <div className="border-t-2 border-gray-200 my-6"></div>

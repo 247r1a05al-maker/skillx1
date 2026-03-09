@@ -8,9 +8,13 @@ import {
   serverTimestamp,
   onDisconnect,
   off,
-  get
+  get,
+  runTransaction
 } from 'firebase/database'
 import { realtimeDb } from '../config/firebase'
+
+const DEFAULT_CERTIFICATE_COUPON_CODE = '48291357'
+const DEFAULT_CERTIFICATE_COUPON_COINS = 100
 
 class FirebaseRealtimeService {
   constructor() {
@@ -2954,6 +2958,120 @@ class FirebaseRealtimeService {
     } catch (error) {
       console.error('Error verifying certificate:', error)
       return null
+    }
+  }
+
+  // ============================================
+  // COUPON CODES (ONE-TIME PER USER)
+  // ============================================
+
+  async ensureCertificateCouponCode() {
+    return this.ensureCouponCode(DEFAULT_CERTIFICATE_COUPON_CODE, DEFAULT_CERTIFICATE_COUPON_COINS, {
+      title: 'Certificate Coupon',
+      description: 'Redeemable once per user for +100 coins',
+    })
+  }
+
+  async ensureCouponCode(code, coins, metadata = {}) {
+    const normalizedCode = (code || '').toString().replace(/\D/g, '').slice(0, 8)
+    if (normalizedCode.length !== 8) return { success: false, error: 'Invalid coupon code format' }
+
+    try {
+      const couponRef = ref(realtimeDb, `couponCodes/${normalizedCode}`)
+      const snap = await get(couponRef)
+      if (snap.exists()) return { success: true, code: normalizedCode, created: false }
+
+      await set(couponRef, {
+        code: normalizedCode,
+        coins: Number(coins) || DEFAULT_CERTIFICATE_COUPON_COINS,
+        active: true,
+        createdAt: serverTimestamp(),
+        ...metadata,
+      })
+
+      return { success: true, code: normalizedCode, created: true }
+    } catch (error) {
+      console.error('Error ensuring coupon code:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  async redeemCouponCode(userId, code) {
+    const normalizedCode = (code || '').toString().replace(/\D/g, '').slice(0, 8)
+    if (!userId) return { success: false, error: 'Not authenticated' }
+    if (normalizedCode.length !== 8) return { success: false, error: 'Enter an 8-digit code' }
+
+    try {
+      // Validate coupon exists and is active
+      const couponRef = ref(realtimeDb, `couponCodes/${normalizedCode}`)
+      const couponSnap = await get(couponRef)
+      if (!couponSnap.exists()) return { success: false, error: 'Invalid code' }
+
+      const coupon = couponSnap.val() || {}
+      if (coupon.active === false) return { success: false, error: 'This code has expired' }
+      const coins = Number(coupon.coins) || DEFAULT_CERTIFICATE_COUPON_COINS
+
+      // Atomic: mark redeemed + increment coins in the same transaction
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      const tx = await runTransaction(
+        userRef,
+        (current) => {
+          if (!current) return current
+          const redeemedCoupons = current.redeemedCoupons || {}
+          if (redeemedCoupons[normalizedCode]) {
+            return
+          }
+          const currentCoins = Number(current.coins) || 0
+          return {
+            ...current,
+            coins: currentCoins + coins,
+            redeemedCoupons: {
+              ...redeemedCoupons,
+              [normalizedCode]: Date.now(),
+            },
+          }
+        },
+        { applyLocally: false }
+      )
+
+      if (!tx.committed) {
+        return { success: false, error: 'Code already redeemed on this account' }
+      }
+
+      const newBalance = Number(tx.snapshot.val()?.coins) || 0
+
+      // Record coin transaction (best-effort)
+      try {
+        const transactionRef = push(ref(realtimeDb, `coinTransactions/${userId}`))
+        await set(transactionRef, {
+          type: 'earned',
+          amount: coins,
+          reason: coupon.title || 'Coupon Code',
+          code: normalizedCode,
+          timestamp: serverTimestamp(),
+          balanceAfter: newBalance,
+        })
+
+        await this.logUserActivity(userId, {
+          type: 'coupon_redeemed',
+          title: `Earned ${coins} coins`,
+          description: `Redeemed code ${normalizedCode}`,
+          amount: coins,
+          icon: '🎟️',
+        })
+      } catch (logError) {
+        console.error('Error recording coupon redemption logs:', logError)
+      }
+
+      return {
+        success: true,
+        code: normalizedCode,
+        coinsAwarded: coins,
+        newBalance,
+      }
+    } catch (error) {
+      console.error('Error redeeming coupon code:', error)
+      return { success: false, error: error.message }
     }
   }
 
