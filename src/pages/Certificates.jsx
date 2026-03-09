@@ -82,7 +82,10 @@ const Certificates = () => {
 
   // Redeem coupon code for coins (one-time per user)
   const handleRedeemCoupon = async () => {
-    if (!authUser) return
+    if (!authUser) {
+      setCouponResult({ success: false, error: 'Please sign in to redeem codes' })
+      return
+    }
 
     const userId = authUser.uid || authUser.id
     const normalized = (couponCode || '').toString().replace(/\D/g, '').slice(0, 8)
