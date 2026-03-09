@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a855f7"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="35%" cy="35%" r="80%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="360" fill="url(#bg)"/>
+  <rect width="1200" height="360" fill="url(#glow)"/>
+
+  <g opacity="0.22" stroke="#ffffff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M420 120h360v140H420z" opacity="0.8"/>
+    <path d="M500 120v-30m80 30v-30m80 30v-30m80 30v-30"/>
+    <path d="M500 260v30m80-30v30m80-30v30m80-30v30"/>
+    <path d="M420 160h-30m30 60h-30m420-60h30m-30 60h30"/>
+    <circle cx="600" cy="190" r="36" opacity="0.8"/>
+    <path d="M580 190l14 14 26-30"/>
+  </g>
+
+  <g opacity="0.20" transform="translate(42 0)">
+    <text x="0" y="300" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto" font-weight="900" font-size="180" fill="#ffffff">AI</text>
+  </g>
+</svg>

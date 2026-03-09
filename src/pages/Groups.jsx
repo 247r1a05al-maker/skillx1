@@ -7,6 +7,13 @@ import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
 import { useNavigate } from 'react-router-dom'
 
+import coverJs from '../assets/group-covers/js.svg'
+import coverWeb from '../assets/group-covers/web.svg'
+import coverDsa from '../assets/group-covers/dsa.svg'
+import coverAi from '../assets/group-covers/ai.svg'
+import coverGeneral from '../assets/group-covers/general.svg'
+import coverDefault from '../assets/group-covers/default.svg'
+
 const normalizeGroupText = (group) => {
   const parts = [group?.name, group?.description, group?.skillCategory]
     .filter(Boolean)
@@ -34,6 +41,12 @@ const getGroupVisualTheme = (group) => {
     text.includes('ux')
   const isGeneral = /\bgeneral\b/.test(text)
   const isAi = text.includes('ai') || text.includes('artificial intelligence') || text.includes('machine learning')
+  const isDsa =
+    text.includes('dsa') ||
+    text.includes('data structures') ||
+    text.includes('algorithms') ||
+    text.includes('leetcode') ||
+    text.includes('competitive programming')
 
   if (isJavascript) {
     return {
@@ -41,6 +54,8 @@ const getGroupVisualTheme = (group) => {
       emblemGradient: 'from-amber-400 to-yellow-500',
       emblemText: 'JS',
       watermarkText: 'JS',
+      coverSrc: coverJs,
+      tagText: 'TRENDING',
     }
   }
 
@@ -50,6 +65,19 @@ const getGroupVisualTheme = (group) => {
       emblemGradient: 'from-indigo-500 to-cyan-500',
       emblemText: '</>',
       watermarkText: 'WEB',
+      coverSrc: coverWeb,
+      tagText: 'EXCLUSIVE',
+    }
+  }
+
+  if (isDsa) {
+    return {
+      headerGradient: 'from-blue-500 to-indigo-600',
+      emblemGradient: 'from-blue-500 to-indigo-600',
+      emblemText: 'DSA',
+      watermarkText: 'DSA',
+      coverSrc: coverDsa,
+      tagText: 'TIPS & RESOURCES',
     }
   }
 
@@ -59,6 +87,8 @@ const getGroupVisualTheme = (group) => {
       emblemGradient: 'from-purple-500 to-indigo-600',
       emblemText: 'AI',
       watermarkText: 'AI',
+      coverSrc: coverAi,
+      tagText: 'KNOWLEDGE',
     }
   }
 
@@ -68,6 +98,8 @@ const getGroupVisualTheme = (group) => {
       emblemGradient: 'from-slate-500 to-gray-600',
       emblemText: 'GEN',
       watermarkText: 'GEN',
+      coverSrc: coverGeneral,
+      tagText: 'COMMUNITY',
     }
   }
 
@@ -79,6 +111,8 @@ const getGroupVisualTheme = (group) => {
         emblemGradient: 'from-indigo-500 to-indigo-600',
         emblemText: 'DEV',
         watermarkText: 'DEV',
+        coverSrc: coverDefault,
+        tagText: 'PROGRAMMING',
       }
     case 'Design':
       return {
@@ -86,6 +120,8 @@ const getGroupVisualTheme = (group) => {
         emblemGradient: 'from-fuchsia-500 to-pink-500',
         emblemText: 'UI',
         watermarkText: 'DESIGN',
+        coverSrc: coverDefault,
+        tagText: 'DESIGN',
       }
     case 'Science':
       return {
@@ -93,6 +129,8 @@ const getGroupVisualTheme = (group) => {
         emblemGradient: 'from-violet-500 to-indigo-600',
         emblemText: 'SCI',
         watermarkText: 'SCI',
+        coverSrc: coverDefault,
+        tagText: 'SCIENCE',
       }
     case 'Business':
       return {
@@ -100,6 +138,8 @@ const getGroupVisualTheme = (group) => {
         emblemGradient: 'from-orange-500 to-amber-500',
         emblemText: 'BIZ',
         watermarkText: 'BIZ',
+        coverSrc: coverDefault,
+        tagText: 'BUSINESS',
       }
     case 'Languages':
       return {
@@ -107,6 +147,8 @@ const getGroupVisualTheme = (group) => {
         emblemGradient: 'from-emerald-500 to-teal-500',
         emblemText: 'LANG',
         watermarkText: 'LANG',
+        coverSrc: coverDefault,
+        tagText: 'LANGUAGES',
       }
     default:
       return {
@@ -114,6 +156,8 @@ const getGroupVisualTheme = (group) => {
         emblemGradient: 'from-purple-500 to-pink-500',
         emblemText: 'GRP',
         watermarkText: 'GROUP',
+        coverSrc: coverDefault,
+        tagText: 'GROUP',
       }
   }
 }
@@ -121,19 +165,18 @@ const getGroupVisualTheme = (group) => {
 const GroupCardHeader = ({ group }) => {
   const theme = getGroupVisualTheme(group)
   return (
-    <div className={`bg-gradient-to-r ${theme.headerGradient} h-24 relative overflow-hidden`}>
-      <div className="absolute inset-0 opacity-20">
-        <motion.div
-          className="absolute w-40 h-40 bg-white rounded-full"
-          animate={{ x: [0, 20, 0], y: [0, 10, 0] }}
-          transition={{ duration: 6, repeat: Infinity }}
-          style={{ top: -80, right: -60 }}
-        />
-      </div>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-white/20 font-black text-5xl tracking-widest select-none">
-          {theme.watermarkText}
-        </div>
+    <div className="h-24 relative overflow-hidden">
+      <img
+        src={theme.coverSrc}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover"
+        draggable={false}
+      />
+      <div className={`absolute inset-0 bg-gradient-to-r ${theme.headerGradient} opacity-20`} />
+      <div className="absolute top-3 left-3">
+        <span className="px-3 py-1 rounded-full text-[11px] font-black tracking-wide bg-white/80 text-gray-900 border border-white/60">
+          {theme.tagText}
+        </span>
       </div>
     </div>
   )
@@ -150,14 +193,25 @@ const GroupCardEmblem = ({ group }) => {
 
 const SKILL_CATEGORIES = [
   'All Skills',
+  'Web Development',
+  'JavaScript',
+  'Data Structures & Algorithms',
   'Programming',
-  'Languages',
+  'AI / Machine Learning',
+  'Data Science',
+  'Cybersecurity',
+  'Cloud',
+  'DevOps',
+  'Mobile Development',
+  'Backend',
+  'UI/UX Design',
   'Design',
+  'Languages',
+  'Business',
+  'Science',
+  'Art',
   'Music',
   'Sports',
-  'Business',
-  'Art',
-  'Science',
   'General'
 ]
 
@@ -790,18 +844,19 @@ const Groups = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Skill Category
                   </label>
-                  <select
+                  <input
+                    list="group-skill-categories"
                     value={createForm.skillCategory}
                     onChange={(e) => setCreateForm({ ...createForm, skillCategory: e.target.value })}
                     disabled={isCreating}
+                    placeholder="Type a category (or pick one)"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
-                  >
+                  />
+                  <datalist id="group-skill-categories">
                     {SKILL_CATEGORIES.filter((c) => c !== 'All Skills').map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
+                      <option key={cat} value={cat} />
                     ))}
-                  </select>
+                  </datalist>
                 </div>
 
                 {createError && (

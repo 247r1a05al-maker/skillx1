@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="70%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="360" fill="url(#bg)"/>
+  <rect width="1200" height="360" fill="url(#glow)"/>
+
+  <g opacity="0.22" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M240 260L360 170L480 230L600 120L720 210L840 140L960 220"/>
+    <circle cx="240" cy="260" r="16" fill="#fff"/>
+    <circle cx="360" cy="170" r="16" fill="#fff"/>
+    <circle cx="480" cy="230" r="16" fill="#fff"/>
+    <circle cx="600" cy="120" r="16" fill="#fff"/>
+    <circle cx="720" cy="210" r="16" fill="#fff"/>
+    <circle cx="840" cy="140" r="16" fill="#fff"/>
+    <circle cx="960" cy="220" r="16" fill="#fff"/>
+  </g>
+
+  <g opacity="0.20" transform="translate(42 0)">
+    <text x="0" y="300" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto" font-weight="900" font-size="160" fill="#ffffff">DSA</text>
+  </g>
+</svg>
