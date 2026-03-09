@@ -7,6 +7,147 @@ import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
 import { useNavigate } from 'react-router-dom'
 
+const normalizeGroupText = (group) => {
+  const parts = [group?.name, group?.description, group?.skillCategory]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .trim()
+  return parts
+}
+
+const getGroupVisualTheme = (group) => {
+  const text = normalizeGroupText(group)
+
+  const isJavascript = /\bjavascript\b/.test(text) || /\bjs\b/.test(text)
+  const isWebDev =
+    text.includes('web dev') ||
+    text.includes('web development') ||
+    text.includes('frontend') ||
+    text.includes('front-end') ||
+    text.includes('html') ||
+    text.includes('css') ||
+    text.includes('react') ||
+    text.includes('next.js') ||
+    text.includes('nextjs') ||
+    text.includes('ui') ||
+    text.includes('ux')
+  const isGeneral = /\bgeneral\b/.test(text)
+  const isAi = text.includes('ai') || text.includes('artificial intelligence') || text.includes('machine learning')
+
+  if (isJavascript) {
+    return {
+      headerGradient: 'from-amber-400 to-yellow-500',
+      emblemGradient: 'from-amber-400 to-yellow-500',
+      emblemText: 'JS',
+      watermarkText: 'JS',
+    }
+  }
+
+  if (isWebDev) {
+    return {
+      headerGradient: 'from-indigo-500 to-cyan-500',
+      emblemGradient: 'from-indigo-500 to-cyan-500',
+      emblemText: '</>',
+      watermarkText: 'WEB',
+    }
+  }
+
+  if (isAi) {
+    return {
+      headerGradient: 'from-purple-500 to-indigo-600',
+      emblemGradient: 'from-purple-500 to-indigo-600',
+      emblemText: 'AI',
+      watermarkText: 'AI',
+    }
+  }
+
+  if (isGeneral || group?.skillCategory === 'General') {
+    return {
+      headerGradient: 'from-slate-500 to-gray-600',
+      emblemGradient: 'from-slate-500 to-gray-600',
+      emblemText: 'GEN',
+      watermarkText: 'GEN',
+    }
+  }
+
+  // Category-based fallback
+  switch (group?.skillCategory) {
+    case 'Programming':
+      return {
+        headerGradient: 'from-indigo-500 to-indigo-600',
+        emblemGradient: 'from-indigo-500 to-indigo-600',
+        emblemText: 'DEV',
+        watermarkText: 'DEV',
+      }
+    case 'Design':
+      return {
+        headerGradient: 'from-fuchsia-500 to-pink-500',
+        emblemGradient: 'from-fuchsia-500 to-pink-500',
+        emblemText: 'UI',
+        watermarkText: 'DESIGN',
+      }
+    case 'Science':
+      return {
+        headerGradient: 'from-violet-500 to-indigo-600',
+        emblemGradient: 'from-violet-500 to-indigo-600',
+        emblemText: 'SCI',
+        watermarkText: 'SCI',
+      }
+    case 'Business':
+      return {
+        headerGradient: 'from-orange-500 to-amber-500',
+        emblemGradient: 'from-orange-500 to-amber-500',
+        emblemText: 'BIZ',
+        watermarkText: 'BIZ',
+      }
+    case 'Languages':
+      return {
+        headerGradient: 'from-emerald-500 to-teal-500',
+        emblemGradient: 'from-emerald-500 to-teal-500',
+        emblemText: 'LANG',
+        watermarkText: 'LANG',
+      }
+    default:
+      return {
+        headerGradient: 'from-purple-500 to-pink-500',
+        emblemGradient: 'from-purple-500 to-pink-500',
+        emblemText: 'GRP',
+        watermarkText: 'GROUP',
+      }
+  }
+}
+
+const GroupCardHeader = ({ group }) => {
+  const theme = getGroupVisualTheme(group)
+  return (
+    <div className={`bg-gradient-to-r ${theme.headerGradient} h-24 relative overflow-hidden`}>
+      <div className="absolute inset-0 opacity-20">
+        <motion.div
+          className="absolute w-40 h-40 bg-white rounded-full"
+          animate={{ x: [0, 20, 0], y: [0, 10, 0] }}
+          transition={{ duration: 6, repeat: Infinity }}
+          style={{ top: -80, right: -60 }}
+        />
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="text-white/20 font-black text-5xl tracking-widest select-none">
+          {theme.watermarkText}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const GroupCardEmblem = ({ group }) => {
+  const theme = getGroupVisualTheme(group)
+  return (
+    <div className={`w-16 h-16 bg-gradient-to-br ${theme.emblemGradient} rounded-lg flex items-center justify-center shadow-lg border-4 border-white`}>
+      <span className="text-white font-black text-lg leading-none">{theme.emblemText}</span>
+    </div>
+  )
+}
+
 const SKILL_CATEGORIES = [
   'All Skills',
   'Programming',
@@ -333,23 +474,11 @@ const Groups = () => {
                             <Card className="h-full hover:shadow-xl transition overflow-hidden group cursor-pointer"
                               onClick={() => navigate(`/group-chat/${group.id}`)}
                             >
-                              {/* Header with gradient */}
-                              <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-24 relative overflow-hidden">
-                                <div className="absolute inset-0 opacity-20">
-                                  <motion.div
-                                    className="absolute w-40 h-40 bg-white rounded-full"
-                                    animate={{ x: [0, 20, 0], y: [0, 10, 0] }}
-                                    transition={{ duration: 6, repeat: Infinity }}
-                                    style={{ top: -80, right: -60 }}
-                                  />
-                                </div>
-                              </div>
+                              <GroupCardHeader group={group} />
 
                               <div className="relative -mt-8 px-4 pb-4">
                                 <div className="flex items-end justify-between mb-4">
-                                  <div className="w-16 h-16 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg border-4 border-white">
-                                    <FiUsers className="text-white" size={32} />
-                                  </div>
+                                  <GroupCardEmblem group={group} />
                                   <Badge variant="primary">{group.skillCategory}</Badge>
                                 </div>
 
@@ -487,23 +616,11 @@ const Groups = () => {
                               transition={{ delay: idx * 0.05 }}
                             >
                               <Card className="h-full hover:shadow-xl transition overflow-hidden group">
-                                {/* Header with gradient */}
-                                <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-24 relative overflow-hidden">
-                                  <div className="absolute inset-0 opacity-20">
-                                    <motion.div
-                                      className="absolute w-40 h-40 bg-white rounded-full"
-                                      animate={{ x: [0, 20, 0], y: [0, 10, 0] }}
-                                      transition={{ duration: 6, repeat: Infinity }}
-                                      style={{ top: -80, right: -60 }}
-                                    />
-                                  </div>
-                                </div>
+                                <GroupCardHeader group={group} />
 
                                 <div className="relative -mt-8 px-4 pb-4">
                                   <div className="flex items-end justify-between mb-4">
-                                    <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-lg flex items-center justify-center shadow-lg border-4 border-white">
-                                      <FiUsers className="text-white" size={32} />
-                                    </div>
+                                    <GroupCardEmblem group={group} />
                                     <Badge variant="primary">{group.skillCategory}</Badge>
                                   </div>
 
