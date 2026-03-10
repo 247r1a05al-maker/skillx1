@@ -19,6 +19,9 @@ const DEFAULT_CERTIFICATE_COUPON_COINS = 100
 const DEFAULT_BIG_COUPON_CODE = '73910462'
 const DEFAULT_BIG_COUPON_COINS = 2000
 
+const DEFAULT_300_COUPON_CODE = '30030030'
+const DEFAULT_300_COUPON_COINS = 300
+
 const LOCAL_COUPONS = {
   [DEFAULT_CERTIFICATE_COUPON_CODE]: {
     code: DEFAULT_CERTIFICATE_COUPON_CODE,
@@ -32,6 +35,13 @@ const LOCAL_COUPONS = {
     coins: DEFAULT_BIG_COUPON_COINS,
     title: 'Mega Coupon',
     description: 'Redeemable once per user for +2000 coins',
+    active: true,
+  },
+  [DEFAULT_300_COUPON_CODE]: {
+    code: DEFAULT_300_COUPON_CODE,
+    coins: DEFAULT_300_COUPON_COINS,
+    title: 'Starter 300 Coupon',
+    description: 'Redeemable once per user for +300 coins',
     active: true,
   },
 }
@@ -1129,13 +1139,20 @@ class FirebaseRealtimeService {
     let hasSpentCoins = false
 
     try {
-      // Check if user is already a member (idempotency)
-      const existingMemberRef = ref(realtimeDb, `groupMembers/${groupId}/${userId}`)
-      const memberSnapshot = await get(existingMemberRef)
-      
-      if (memberSnapshot.exists()) {
+      const userIdCandidates = await this.resolveUserIdCandidates(userId)
+
+      // Check if user is already a member under any known ID (idempotency)
+      const groupMembersRef = ref(realtimeDb, `groupMembers/${groupId}`)
+      const groupMembersSnapshot = await get(groupMembersRef)
+      const hasExistingMembership =
+        groupMembersSnapshot.exists() &&
+        userIdCandidates.some((candidateId) => groupMembersSnapshot.hasChild(String(candidateId)))
+
+      if (hasExistingMembership) {
         return { success: true, message: 'Already a member' }
       }
+
+      const existingMemberRef = ref(realtimeDb, `groupMembers/${groupId}/${userId}`)
 
       const spendResult = await this.spendCoins(
         userId,
@@ -1476,11 +1493,36 @@ class FirebaseRealtimeService {
     }
   }
 
+  async resolveUserIdCandidates(userId) {
+    const ids = new Set()
+
+    if (userId) {
+      ids.add(String(userId))
+    }
+
+    try {
+      const userRef = ref(realtimeDb, `users/${userId}`)
+      const snapshot = await get(userRef)
+
+      if (snapshot.exists()) {
+        const profile = snapshot.val() || {}
+        if (profile.id) ids.add(String(profile.id))
+        if (profile.uid) ids.add(String(profile.uid))
+      }
+    } catch (error) {
+      console.warn('Unable to resolve user ID candidates:', error)
+    }
+
+    return Array.from(ids)
+  }
+
   // Get user's groups
   async getUserGroups(userId) {
     if (!userId) return []
 
     try {
+      const userIdCandidates = await this.resolveUserIdCandidates(userId)
+      const userIdSet = new Set(userIdCandidates)
       const membershipRef = ref(realtimeDb, `groupMembers`)
       const snapshot = await get(membershipRef)
       const userGroups = []
@@ -1488,7 +1530,7 @@ class FirebaseRealtimeService {
       if (snapshot.exists()) {
         snapshot.forEach((groupSnapshot) => {
           groupSnapshot.forEach((userSnapshot) => {
-            if (userSnapshot.key === userId) {
+            if (userIdSet.has(String(userSnapshot.key))) {
               userGroups.push(groupSnapshot.key)
             }
           })
@@ -3002,6 +3044,12 @@ class FirebaseRealtimeService {
       await this.ensureCouponCode(DEFAULT_BIG_COUPON_CODE, DEFAULT_BIG_COUPON_COINS, {
         title: 'Mega Coupon',
         description: 'Redeemable once per user for +2000 coins',
+      })
+    )
+    results.push(
+      await this.ensureCouponCode(DEFAULT_300_COUPON_CODE, DEFAULT_300_COUPON_COINS, {
+        title: 'Starter 300 Coupon',
+        description: 'Redeemable once per user for +300 coins',
       })
     )
     return { success: true, codes: results.filter(Boolean) }
