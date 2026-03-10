@@ -2793,13 +2793,17 @@ class FirebaseRealtimeService {
       // Profile Completion - must actually have bio AND skills
       const profileClaimed = await this.checkProfileCompletionClaimed(userId)
       const hasBio = userProfile.bio && userProfile.bio.trim().length > 0
-      const hasTeachingSkills = userProfile.skills && 
-                                userProfile.skills.teaching && 
-                                Array.isArray(userProfile.skills.teaching) &&
-                                userProfile.skills.teaching.length > 0
-      const profileComplete = hasBio && hasTeachingSkills
+      const hasTeachingSkills = userProfile.skills &&
+        userProfile.skills.teaching &&
+        Array.isArray(userProfile.skills.teaching) &&
+        userProfile.skills.teaching.length > 0
+      const hasLearningSkills = userProfile.skills &&
+        userProfile.skills.learning &&
+        Array.isArray(userProfile.skills.learning) &&
+        userProfile.skills.learning.length > 0
+      const profileComplete = hasBio && (hasTeachingSkills || hasLearningSkills)
       
-      console.log('📝 Profile - claimed:', profileClaimed, '| hasBio:', hasBio, '| hasSkills:', hasTeachingSkills, '| canClaim:', !profileClaimed && profileComplete)
+      console.log('📝 Profile - claimed:', profileClaimed, '| hasBio:', hasBio, '| hasTeach:', hasTeachingSkills, '| hasLearn:', hasLearningSkills, '| canClaim:', !profileClaimed && profileComplete)
       opportunities.push({
         id: 'profile-completion',
         title: 'Complete Your Profile',
@@ -2813,7 +2817,8 @@ class FirebaseRealtimeService {
 
       // Join Group - must actually be in a group
       const joinGroupClaimed = await this.checkJoinGroupClaimed(userId)
-      const userGroupCount = userProfile.groups ? Object.keys(userProfile.groups).length : 0
+  const userGroups = await this.getUserGroups(userId)
+  const userGroupCount = Array.isArray(userGroups) ? userGroups.length : 0
       const joinedGroup = userGroupCount > 0
       
       console.log('👥 Group - claimed:', joinGroupClaimed, '| count:', userGroupCount, '| canClaim:', !joinGroupClaimed && joinedGroup)

@@ -27,6 +27,7 @@ const Dashboard = () => {
   const navigate = useNavigate()
   const { user: authUser } = useAuthStore()
   const { success, error: showError } = useToast()
+  const userId = authUser?.uid || authUser?.id
   const [stats, setStats] = useState({
     coins: 0,
     sessionsCompleted: 0,
@@ -41,21 +42,22 @@ const Dashboard = () => {
 
   // Load user data and earning opportunities
   useEffect(() => {
+    let unsubscribeUsers = null
+
     const loadData = async () => {
-      if (!authUser?.uid && !authUser?.id) return
+      if (!userId) return
 
       setIsLoading(true)
       try {
-        const userId = authUser.uid || authUser.id
         console.log('📊 Loading dashboard for user:', userId)
 
         // Load earning opportunities
         const opportunities = await firebaseRealtime.getEarningOpportunities(userId)
         console.log('🎁 Earning opportunities:', opportunities)
-        setEarningOpportunities(opportunities)
+        setEarningOpportunities(Array.isArray(opportunities) ? opportunities : [])
 
         // Subscribe to all users for recommendations
-        const unsubscribe = firebaseRealtime.subscribeToUsers((users) => {
+        unsubscribeUsers = firebaseRealtime.subscribeToUsers((users) => {
           // Filter out current user
           const otherUsers = users.filter((u) => {
             return u.id !== userId && 
@@ -73,10 +75,6 @@ const Dashboard = () => {
         const cachedCoins = authUser.coins || 0
         setStats(prev => ({ ...prev, coins: cachedCoins }))
         console.log('💰 User coins loaded instantly from cache:', cachedCoins)
-
-        return () => {
-          unsubscribe?.()
-        }
       } catch (error) {
         console.error('❌ Error loading dashboard data:', error)
         setIsLoading(false)
@@ -84,11 +82,31 @@ const Dashboard = () => {
     }
 
     loadData()
-  }, [authUser])
+
+    return () => {
+      unsubscribeUsers?.()
+    }
+  }, [authUser, userId])
+
+  useEffect(() => {
+    if (!userId) return
+
+    const refreshOpportunities = async () => {
+      const opportunities = await firebaseRealtime.getEarningOpportunities(userId)
+      setEarningOpportunities(Array.isArray(opportunities) ? opportunities : [])
+    }
+
+    const onFocus = () => {
+      refreshOpportunities()
+    }
+
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [userId])
 
   // Handle claim reward
   const handleClaimReward = async (opportunity) => {
-    if (!authUser?.id) {
+    if (!userId) {
       showError('Please login to claim rewards')
       return
     }
@@ -111,16 +129,16 @@ const Dashboard = () => {
 
       switch (opportunity.action) {
         case 'claimRegistrationBonus':
-          result = await firebaseRealtime.claimRegistrationBonus(authUser.id)
+          result = await firebaseRealtime.claimRegistrationBonus(userId)
           break
         case 'claimProfileCompletion':
-          result = await firebaseRealtime.claimProfileCompletion(authUser.id)
+          result = await firebaseRealtime.claimProfileCompletion(userId)
           break
         case 'claimJoinGroupBonus':
-          result = await firebaseRealtime.claimJoinGroupBonus(authUser.id)
+          result = await firebaseRealtime.claimJoinGroupBonus(userId)
           break
         case 'claimFollowMilestone':
-          result = await firebaseRealtime.claimFollowMilestone(authUser.id, 10)
+          result = await firebaseRealtime.claimFollowMilestone(userId, 10)
           break
         default:
           showError('Invalid reward action')
@@ -135,8 +153,8 @@ const Dashboard = () => {
         success(`🎉 You earned ${result.coins} coins!`)
         
         // Refresh opportunities
-        const opportunities = await firebaseRealtime.getEarningOpportunities(authUser.id)
-        setEarningOpportunities(opportunities)
+        const opportunities = await firebaseRealtime.getEarningOpportunities(userId)
+        setEarningOpportunities(Array.isArray(opportunities) ? opportunities : [])
         
         // DO NOT manually update coins here - UserDataSync in App.jsx handles it automatically
         // This prevents double-counting and ensures single source of truth from Firebase
