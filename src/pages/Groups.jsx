@@ -60,6 +60,12 @@ const Groups = () => {
     skillCategory: 'General',
   })
 
+  const createPreviewTheme = getGroupVisualTheme({
+    name: createForm.name || 'New Group',
+    description: createForm.description,
+    skillCategory: createForm.skillCategory || 'General',
+  })
+
   // Load groups and user's groups
   useEffect(() => {
     if (!authUser) return
@@ -679,6 +685,26 @@ const Groups = () => {
                       <option key={cat} value={cat} />
                     ))}
                   </datalist>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Cover Preview
+                  </label>
+                  <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                    <img
+                      src={createPreviewTheme.coverSrc}
+                      alt="Group cover preview"
+                      className="w-full h-28 object-cover"
+                      draggable={false}
+                    />
+                    <div className="p-3 bg-white flex items-center justify-between">
+                      <span className="text-sm font-bold text-gray-900 truncate">
+                        {createForm.skillCategory || 'General'}
+                      </span>
+                      <Badge variant="gray">{createPreviewTheme.emblemText}</Badge>
+                    </div>
+                  </div>
                 </div>
 
                 {createError && (
