@@ -245,21 +245,33 @@ const Profile = () => {
     })
   }, [groupsJoined, followersCount, followingCount, user, userPosts.length, achievements, streakData])
 
-  const effectiveBadges = achievements.length > 0
-    ? achievements.map((item, index) => ({
-        id: item.id || `${item.badgeName || 'badge'}-${index}`,
-        name: item.badgeName || item.name || 'Achievement',
-        description: item.description || 'Earned by activity milestones',
-        icon: item.icon || '🏆',
-        earnedAt: item.dateEarned || item.earnedAt || item.timestamp,
-      }))
-    : badgeStats.earnedBadges.map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        icon: '🏆',
-        earnedAt: null,
-      }))
+  const effectiveBadges = useMemo(() => {
+    const fromAchievements = (achievements || []).map((item, index) => ({
+      id: item.id || `${item.badgeName || 'badge'}-${index}`,
+      name: item.badgeName || item.name || 'Achievement',
+      description: item.description || 'Earned by activity milestones',
+      icon: item.icon || '🏆',
+      earnedAt: item.dateEarned || item.earnedAt || item.timestamp,
+    }))
+
+    const fromComputed = (badgeStats.earnedBadges || []).map((item) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      icon: '🏆',
+      earnedAt: null,
+    }))
+
+    const merged = [...fromAchievements, ...fromComputed]
+    const seen = new Set()
+
+    return merged.filter((badge) => {
+      const key = `${badge.id || ''}::${badge.name || ''}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [achievements, badgeStats])
 
   const handleAvatarUpload = async (event) => {
     const file = event.target.files?.[0]
@@ -738,20 +750,28 @@ const Profile = () => {
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-3">In Progress</h3>
                 <div className="space-y-3">
-                  {badgeStats.inProgressBadges.slice(0, 6).map((item) => (
-                    <div key={item.id}>
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="font-semibold text-gray-700">{item.name}</span>
-                        <span className="text-gray-600">{Math.round(item.progressPercentage)}%</span>
+                  {badgeStats.inProgressBadges.map((item) => {
+                    const visiblePercent =
+                      item.progressPercentage > 0 && item.progressPercentage < 1
+                        ? 1
+                        : Math.round(item.progressPercentage)
+
+                    return (
+                      <div key={item.id}>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="font-semibold text-gray-700">{item.name}</span>
+                          <span className="text-gray-600">{visiblePercent}%</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
+                            style={{ width: `${Math.max(item.progressPercentage, item.progressPercentage > 0 ? 1 : 0)}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">{item.progressLabel}</p>
                       </div>
-                      <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
-                          style={{ width: `${item.progressPercentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
