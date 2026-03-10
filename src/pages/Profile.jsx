@@ -13,6 +13,15 @@ import {
   FiUsers,
   FiX,
   FiZap,
+  FiPlus,
+  FiBriefcase,
+  FiCode,
+  FiStar,
+  FiBookOpen,
+  FiTrendingUp,
+  FiLink,
+  FiImage,
+  FiVideo,
 } from 'react-icons/fi'
 import { Card, Button, Badge } from '../components/UI'
 import Avatar from '../components/Avatar'
@@ -78,6 +87,18 @@ const Profile = () => {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showPostModal, setShowPostModal] = useState(false)
   const [selectedPost, setSelectedPost] = useState(null)
+
+  const [showCreatePostModal, setShowCreatePostModal] = useState(false)
+  const [isCreatingPost, setIsCreatingPost] = useState(false)
+  const [postForm, setPostForm] = useState({
+    type: 'update',
+    title: '',
+    content: '',
+    imageUrl: '',
+    videoUrl: '',
+    projectLink: '',
+    tags: '',
+  })
 
   const [showFollowersModal, setShowFollowersModal] = useState(false)
   const [showFollowingModal, setShowFollowingModal] = useState(false)
@@ -347,6 +368,85 @@ const Profile = () => {
     if (!currentUserId || !profileUserId || isOwnProfile) return
     await firebaseRealtime.createOrGetConversation(currentUserId, profileUserId)
     navigate(`/inbox?user=${profileUserId}`)
+  }
+
+  const handleCreatePost = async () => {
+    if (!postForm.content.trim()) {
+      alert('Please add some content to your post')
+      return
+    }
+
+    setIsCreatingPost(true)
+    try {
+      const postTypeEmojis = {
+        portfolio: '🎨',
+        project: '💼',
+        skill: '⚡',
+        achievement: '🏆',
+        tutorial: '📚',
+        update: '📝',
+      }
+
+      const typeLabels = {
+        portfolio: 'Portfolio',
+        project: 'Project',
+        skill: 'Skill Demo',
+        achievement: 'Achievement',
+        tutorial: 'Tutorial',
+        update: 'Update',
+      }
+
+      const emoji = postTypeEmojis[postForm.type] || '📝'
+      const typeLabel = typeLabels[postForm.type] || 'Update'
+
+      let formattedContent = `${emoji} ${typeLabel}`
+      if (postForm.title.trim()) {
+        formattedContent += `: ${postForm.title.trim()}`
+      }
+      formattedContent += `\n\n${postForm.content.trim()}`
+
+      if (postForm.projectLink.trim()) {
+        formattedContent += `\n\n🔗 Link: ${postForm.projectLink.trim()}`
+      }
+
+      const tags = postForm.tags
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t)
+
+      const postData = {
+        authorId: currentUserId,
+        content: formattedContent,
+        image: postForm.imageUrl.trim() || null,
+        video: postForm.videoUrl.trim() || null,
+        tags,
+      }
+
+      const result = await firebaseRealtime.createPost(postData)
+
+      if (result.success) {
+        // Reset form
+        setPostForm({
+          type: 'update',
+          title: '',
+          content: '',
+          imageUrl: '',
+          videoUrl: '',
+          projectLink: '',
+          tags: '',
+        })
+        setShowCreatePostModal(false)
+        // Success feedback
+        alert('Post created successfully! 🎉')
+      } else {
+        alert(`Failed to create post: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error creating post:', error)
+      alert('An error occurred while creating the post')
+    } finally {
+      setIsCreatingPost(false)
+    }
   }
 
   if (isLoading) {
@@ -698,9 +798,32 @@ const Profile = () => {
 
         {activeTab === 'posts' && (
           <Card>
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Posts</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Posts</h2>
+              {isOwnProfile && (
+                <Button
+                  variant="primary"
+                  onClick={() => setShowCreatePostModal(true)}
+                  className="flex items-center gap-2"
+                >
+                  <FiPlus size={16} /> Create Post
+                </Button>
+              )}
+            </div>
             {userPosts.length === 0 ? (
-              <p className="text-gray-500">No posts yet.</p>
+              <div className="text-center py-8">
+                <FiFileText size={48} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-500 mb-4">No posts yet.</p>
+                {isOwnProfile && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowCreatePostModal(true)}
+                    className="flex items-center gap-2 mx-auto"
+                  >
+                    <FiPlus size={16} /> Create Your First Post
+                  </Button>
+                )}
+              </div>
             ) : (
               <div className="space-y-3">
                 {userPosts.map((post) => (
@@ -835,6 +958,153 @@ const Profile = () => {
               <Button variant="secondary" onClick={() => setShowEditModal(false)}>Cancel</Button>
               <Button variant="primary" onClick={handleSaveProfile} disabled={isSaving} className="flex items-center gap-2">
                 <FiCheck size={16} /> {isSaving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {showCreatePostModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <Card className="w-full max-w-2xl my-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <FiPlus size={20} /> Create Post
+              </h2>
+              <button onClick={() => setShowCreatePostModal(false)} className="p-1 rounded hover:bg-gray-100">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Post Type Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Post Type</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { value: 'portfolio', label: 'Portfolio', icon: FiBriefcase, color: 'indigo' },
+                    { value: 'project', label: 'Project', icon: FiCode, color: 'purple' },
+                    { value: 'skill', label: 'Skill Demo', icon: FiZap, color: 'blue' },
+                    { value: 'achievement', label: 'Achievement', icon: FiStar, color: 'yellow' },
+                    { value: 'tutorial', label: 'Tutorial', icon: FiBookOpen, color: 'green' },
+                    { value: 'update', label: 'Update', icon: FiTrendingUp, color: 'gray' },
+                  ].map((type) => {
+                    const Icon = type.icon
+                    const isSelected = postForm.type === type.value
+                    return (
+                      <button
+                        key={type.value}
+                        onClick={() => setPostForm((prev) => ({ ...prev, type: type.value }))}
+                        className={`p-3 rounded-lg border-2 transition flex flex-col items-center gap-1 ${
+                          isSelected
+                            ? `border-${type.color}-500 bg-${type.color}-50`
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <Icon size={20} className={isSelected ? `text-${type.color}-600` : 'text-gray-500'} />
+                        <span className={`text-xs font-medium ${isSelected ? `text-${type.color}-700` : 'text-gray-600'}`}>
+                          {type.label}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Title <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={postForm.title}
+                  onChange={(e) => setPostForm((prev) => ({ ...prev, title: e.target.value }))}
+                  placeholder="Give your post a catchy title..."
+                />
+              </div>
+
+              {/* Content */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Content *</label>
+                <textarea
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={postForm.content}
+                  onChange={(e) => setPostForm((prev) => ({ ...prev, content: e.target.value }))}
+                  placeholder="Share your portfolio, project, skill, or update with the community..."
+                />
+              </div>
+
+              {/* Image URL */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                  <FiImage size={14} /> Image URL <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="url"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={postForm.imageUrl}
+                  onChange={(e) => setPostForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
+
+              {/* Video URL */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                  <FiVideo size={14} /> Video URL <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="url"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={postForm.videoUrl}
+                  onChange={(e) => setPostForm((prev) => ({ ...prev, videoUrl: e.target.value }))}
+                  placeholder="https://example.com/video.mp4"
+                />
+              </div>
+
+              {/* Project Link */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                  <FiLink size={14} /> Project Link <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="url"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={postForm.projectLink}
+                  onChange={(e) => setPostForm((prev) => ({ ...prev, projectLink: e.target.value }))}
+                  placeholder="https://github.com/username/project or live demo link"
+                />
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Tags <span className="text-gray-400 font-normal">(comma-separated)</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  value={postForm.tags}
+                  onChange={(e) => setPostForm((prev) => ({ ...prev, tags: e.target.value }))}
+                  placeholder="react, webdev, portfolio, design"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowCreatePostModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleCreatePost}
+                disabled={isCreatingPost || !postForm.content.trim()}
+                className="flex items-center gap-2"
+              >
+                <FiCheck size={16} /> {isCreatingPost ? 'Creating...' : 'Create Post'}
               </Button>
             </div>
           </Card>
