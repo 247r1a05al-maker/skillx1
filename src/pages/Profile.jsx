@@ -28,7 +28,7 @@ import Avatar from '../components/Avatar'
 import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
 import { userProfileService } from '../services/user-profile'
-import { calculateBadges } from '../utils/badges'
+import { calculateBadges, BADGES } from '../utils/badges'
 
 const LEVEL_POINTS = 120
 
@@ -872,7 +872,7 @@ const Profile = () => {
             {badgeStats.inProgressBadges.length > 0 && (
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-3">In Progress</h3>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {badgeStats.inProgressBadges.map((item) => {
                     const visiblePercent =
                       item.progressPercentage > 0 && item.progressPercentage < 1
@@ -880,24 +880,81 @@ const Profile = () => {
                         : Math.round(item.progressPercentage)
 
                     return (
-                      <div key={item.id}>
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="font-semibold text-gray-700">{item.name}</span>
-                          <span className="text-gray-600">{visiblePercent}%</span>
+                      <div key={item.id} className="p-3 rounded-lg border border-gray-200 bg-white">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-gray-900 flex items-center gap-2">
+                            {item.icon} {item.name}
+                          </span>
+                          <span className="text-sm font-medium text-indigo-600">{visiblePercent}%</span>
                         </div>
-                        <div className="h-2 rounded-full bg-gray-200 overflow-hidden">
+                        <p className="text-sm text-gray-600 mb-2">{item.description}</p>
+                        <div className="h-2.5 rounded-full bg-gray-200 overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
+                            className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all"
                             style={{ width: `${Math.max(item.progressPercentage, item.progressPercentage > 0 ? 1 : 0)}%` }}
                           />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">{item.progressLabel}</p>
+                        <p className="text-sm font-medium text-gray-700 mt-2">
+                          Progress: {item.progressLabel}
+                        </p>
                       </div>
                     )
                   })}
                 </div>
               </div>
             )}
+
+            {/* Show all available badges */}
+            <div className="mt-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">All Available Badges ({Object.keys(BADGES).length})</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {Object.values(BADGES).map((badge) => {
+                  const isEarned = effectiveBadges.some(b => b.id === badge.id)
+                  const inProgress = badgeStats.inProgressBadges.find(b => b.id === badge.id)
+                  const Icon = badge.icon
+                  
+                  return (
+                    <div 
+                      key={badge.id} 
+                      className={`rounded-lg p-4 border transition ${
+                        isEarned 
+                          ? 'border-green-300 bg-green-50' 
+                          : inProgress
+                          ? 'border-indigo-300 bg-indigo-50'
+                          : 'border-gray-200 bg-gray-50 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {typeof Icon === 'string' ? (
+                            <span className="text-2xl">{Icon}</span>
+                          ) : Icon ? (
+                            <Icon size={20} className={isEarned ? 'text-green-600' : inProgress ? 'text-indigo-600' : 'text-gray-400'} />
+                          ) : (
+                            <span className="text-2xl">{badge.icon}</span>
+                          )}
+                          <div>
+                            <p className="font-semibold text-gray-900">{badge.name}</p>
+                          </div>
+                        </div>
+                        {isEarned && <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded">✓ Earned</span>}
+                        {!isEarned && inProgress && (
+                          <span className="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-1 rounded">
+                            {Math.round(inProgress.progressPercentage)}%
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600">{badge.description}</p>
+                      {inProgress && !isEarned && (
+                        <p className="text-xs font-medium text-gray-700 mt-2">
+                          {inProgress.progressLabel}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </Card>
         )}
       </div>
