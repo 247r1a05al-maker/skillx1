@@ -572,18 +572,18 @@ const Profile = () => {
 
               <Card>
                 <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
-                  <FiUsers size={18} /> Community Rank
+                  <FiZap size={18} /> Login Activity
                 </h3>
-                <p className="text-3xl font-bold text-indigo-700">#{rankMetrics.rank}</p>
-                <p className="text-sm text-gray-600 mb-3">of {rankMetrics.rankedTotal}</p>
+                <p className="text-3xl font-bold text-green-600">{streakData?.currentStreak || 0} days</p>
+                <p className="text-sm text-gray-600 mb-3">Marked by daily sign in</p>
 
                 <div className="flex items-center gap-1 mb-3" aria-hidden>
-                  {Array.from({ length: 12 }).map((_, i) => {
-                    const filled = i < Math.max(1, Math.round(rankMetrics.progressToNext / 9))
+                  {Array.from({ length: 14 }).map((_, i) => {
+                    const filled = i < Math.min(streakData?.currentStreak || 0, 14)
                     return (
                       <span
                         key={`hm-${i}`}
-                        className={`w-3 h-3 rounded-sm border ${filled ? 'bg-green-400 border-green-300' : 'bg-green-100 border-green-100'}`}
+                        className={`w-3 h-3 rounded-sm border ${filled ? 'bg-green-500 border-green-400' : 'bg-gray-100 border-gray-200'}`}
                       />
                     )
                   })}
@@ -591,13 +591,13 @@ const Profile = () => {
 
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
                   <div
-                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
-                    style={{ width: `${rankMetrics.progressToNext}%` }}
+                    className="h-full bg-gradient-to-r from-green-500 to-emerald-500"
+                    style={{ width: `${Math.min(((streakData?.currentStreak || 0) / 14) * 100, 100)}%` }}
                   />
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-gray-700">Level {rankMetrics.level} Learner</span>
-                  <span className="text-gray-600">Next Lv: {rankMetrics.progressToNext}%</span>
+                  <span className="font-semibold text-gray-700">Longest Streak: {streakData?.longestStreak || 0} days</span>
+                  <span className="text-gray-600">14-day view</span>
                 </div>
               </Card>
             </div>
