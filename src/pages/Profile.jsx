@@ -60,6 +60,71 @@ const getInitialProfile = (authUser, userId) => ({
   },
 })
 
+const POST_TYPE_OPTIONS = [
+  {
+    value: 'portfolio',
+    label: 'Portfolio',
+    icon: FiBriefcase,
+    selectedClass: 'border-indigo-500 bg-indigo-50 text-indigo-700',
+    iconClass: 'text-indigo-600',
+  },
+  {
+    value: 'project',
+    label: 'Project',
+    icon: FiCode,
+    selectedClass: 'border-purple-500 bg-purple-50 text-purple-700',
+    iconClass: 'text-purple-600',
+  },
+  {
+    value: 'skill',
+    label: 'Skill Demo',
+    icon: FiZap,
+    selectedClass: 'border-blue-500 bg-blue-50 text-blue-700',
+    iconClass: 'text-blue-600',
+  },
+  {
+    value: 'achievement',
+    label: 'Achievement',
+    icon: FiStar,
+    selectedClass: 'border-amber-500 bg-amber-50 text-amber-700',
+    iconClass: 'text-amber-600',
+  },
+  {
+    value: 'tutorial',
+    label: 'Tutorial',
+    icon: FiBookOpen,
+    selectedClass: 'border-emerald-500 bg-emerald-50 text-emerald-700',
+    iconClass: 'text-emerald-600',
+  },
+  {
+    value: 'update',
+    label: 'Update',
+    icon: FiTrendingUp,
+    selectedClass: 'border-slate-500 bg-slate-50 text-slate-700',
+    iconClass: 'text-slate-600',
+  },
+]
+
+const DEFAULT_POST_FORM = {
+  type: 'update',
+  title: '',
+  content: '',
+  imageUrl: '',
+  videoUrl: '',
+  projectLink: '',
+  tags: '',
+}
+
+const isValidHttpUrl = (value) => {
+  if (!value) return true
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 const Profile = () => {
   const navigate = useNavigate()
   const { userId: paramUserId } = useParams()
@@ -90,15 +155,8 @@ const Profile = () => {
 
   const [showCreatePostModal, setShowCreatePostModal] = useState(false)
   const [isCreatingPost, setIsCreatingPost] = useState(false)
-  const [postForm, setPostForm] = useState({
-    type: 'update',
-    title: '',
-    content: '',
-    imageUrl: '',
-    videoUrl: '',
-    projectLink: '',
-    tags: '',
-  })
+  const [postForm, setPostForm] = useState(DEFAULT_POST_FORM)
+  const [postFormError, setPostFormError] = useState('')
 
   const [showFollowersModal, setShowFollowersModal] = useState(false)
   const [showFollowingModal, setShowFollowingModal] = useState(false)
@@ -370,12 +428,61 @@ const Profile = () => {
     navigate(`/inbox?user=${profileUserId}`)
   }
 
+  const resetPostForm = () => {
+    setPostForm(DEFAULT_POST_FORM)
+    setPostFormError('')
+  }
+
+  const closeCreatePostModal = () => {
+    setShowCreatePostModal(false)
+    resetPostForm()
+  }
+
   const handleCreatePost = async () => {
-    if (!postForm.content.trim()) {
-      alert('Please add some content to your post')
+    const title = postForm.title.trim()
+    const content = postForm.content.trim()
+    const imageUrl = postForm.imageUrl.trim()
+    const videoUrl = postForm.videoUrl.trim()
+    const projectLink = postForm.projectLink.trim()
+
+    if (!content) {
+      setPostFormError('Content is required.')
       return
     }
 
+    if (content.length < 10) {
+      setPostFormError('Content must be at least 10 characters.')
+      return
+    }
+
+    if (title.length > 120) {
+      setPostFormError('Title must be 120 characters or less.')
+      return
+    }
+
+    if (content.length > 2000) {
+      setPostFormError('Content must be 2000 characters or less.')
+      return
+    }
+
+    if (!isValidHttpUrl(imageUrl) || !isValidHttpUrl(videoUrl) || !isValidHttpUrl(projectLink)) {
+      setPostFormError('Use valid URLs starting with http:// or https://.')
+      return
+    }
+
+    if (imageUrl && videoUrl) {
+      setPostFormError('Please provide either an image URL or a video URL, not both.')
+      return
+    }
+
+    const tags = [...new Set(
+      postForm.tags
+        .split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter((t) => t && t.length <= 24)
+    )].slice(0, 10)
+
+    setPostFormError('')
     setIsCreatingPost(true)
     try {
       const postTypeEmojis = {
@@ -400,50 +507,36 @@ const Profile = () => {
       const typeLabel = typeLabels[postForm.type] || 'Update'
 
       let formattedContent = `${emoji} ${typeLabel}`
-      if (postForm.title.trim()) {
-        formattedContent += `: ${postForm.title.trim()}`
+      if (title) {
+        formattedContent += `: ${title}`
       }
-      formattedContent += `\n\n${postForm.content.trim()}`
+      formattedContent += `\n\n${content}`
 
-      if (postForm.projectLink.trim()) {
-        formattedContent += `\n\n🔗 Link: ${postForm.projectLink.trim()}`
+      if (projectLink) {
+        formattedContent += `\n\n🔗 Link: ${projectLink}`
       }
-
-      const tags = postForm.tags
-        .split(',')
-        .map((t) => t.trim())
-        .filter((t) => t)
 
       const postData = {
         authorId: currentUserId,
         content: formattedContent,
-        image: postForm.imageUrl.trim() || null,
-        video: postForm.videoUrl.trim() || null,
+        title,
+        type: postForm.type,
+        projectLink: projectLink || null,
+        image: imageUrl || null,
+        video: videoUrl || null,
         tags,
       }
 
       const result = await firebaseRealtime.createPost(postData)
 
       if (result.success) {
-        // Reset form
-        setPostForm({
-          type: 'update',
-          title: '',
-          content: '',
-          imageUrl: '',
-          videoUrl: '',
-          projectLink: '',
-          tags: '',
-        })
-        setShowCreatePostModal(false)
-        // Success feedback
-        alert('Post created successfully! 🎉')
+        closeCreatePostModal()
       } else {
-        alert(`Failed to create post: ${result.error}`)
+        setPostFormError(result.error || 'Failed to create post.')
       }
     } catch (error) {
       console.error('Error creating post:', error)
-      alert('An error occurred while creating the post')
+      setPostFormError('An error occurred while creating the post.')
     } finally {
       setIsCreatingPost(false)
     }
@@ -1022,44 +1115,44 @@ const Profile = () => {
       )}
 
       {showCreatePostModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <Card className="w-full max-w-2xl my-8">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center p-3 sm:p-4 overflow-y-auto">
+          <Card className="w-full max-w-2xl my-2 sm:my-4 max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <FiPlus size={20} /> Create Post
               </h2>
-              <button onClick={() => setShowCreatePostModal(false)} className="p-1 rounded hover:bg-gray-100">
+              <button onClick={closeCreatePostModal} className="p-1 rounded hover:bg-gray-100">
                 <FiX size={20} />
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto pr-1">
+              {postFormError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {postFormError}
+                </p>
+              )}
+
               {/* Post Type Selection */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Post Type</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {[
-                    { value: 'portfolio', label: 'Portfolio', icon: FiBriefcase, color: 'indigo' },
-                    { value: 'project', label: 'Project', icon: FiCode, color: 'purple' },
-                    { value: 'skill', label: 'Skill Demo', icon: FiZap, color: 'blue' },
-                    { value: 'achievement', label: 'Achievement', icon: FiStar, color: 'yellow' },
-                    { value: 'tutorial', label: 'Tutorial', icon: FiBookOpen, color: 'green' },
-                    { value: 'update', label: 'Update', icon: FiTrendingUp, color: 'gray' },
-                  ].map((type) => {
+                  {POST_TYPE_OPTIONS.map((type) => {
                     const Icon = type.icon
                     const isSelected = postForm.type === type.value
                     return (
                       <button
+                        type="button"
                         key={type.value}
                         onClick={() => setPostForm((prev) => ({ ...prev, type: type.value }))}
                         className={`p-3 rounded-lg border-2 transition flex flex-col items-center gap-1 ${
                           isSelected
-                            ? `border-${type.color}-500 bg-${type.color}-50`
+                            ? type.selectedClass
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <Icon size={20} className={isSelected ? `text-${type.color}-600` : 'text-gray-500'} />
-                        <span className={`text-xs font-medium ${isSelected ? `text-${type.color}-700` : 'text-gray-600'}`}>
+                        <Icon size={20} className={isSelected ? type.iconClass : 'text-gray-500'} />
+                        <span className={`text-xs font-medium ${isSelected ? '' : 'text-gray-600'}`}>
                           {type.label}
                         </span>
                       </button>
@@ -1076,6 +1169,7 @@ const Profile = () => {
                 <input
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  maxLength={120}
                   value={postForm.title}
                   onChange={(e) => setPostForm((prev) => ({ ...prev, title: e.target.value }))}
                   placeholder="Give your post a catchy title..."
@@ -1088,10 +1182,12 @@ const Profile = () => {
                 <textarea
                   rows={6}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  maxLength={2000}
                   value={postForm.content}
                   onChange={(e) => setPostForm((prev) => ({ ...prev, content: e.target.value }))}
                   placeholder="Share your portfolio, project, skill, or update with the community..."
                 />
+                <p className="text-xs text-gray-500 mt-1">{postForm.content.trim().length}/2000</p>
               </div>
 
               {/* Image URL */}
@@ -1151,8 +1247,8 @@ const Profile = () => {
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="secondary" onClick={() => setShowCreatePostModal(false)}>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end gap-2 shrink-0 bg-white">
+              <Button variant="secondary" onClick={closeCreatePostModal}>
                 Cancel
               </Button>
               <Button

@@ -1586,11 +1586,30 @@ class FirebaseRealtimeService {
   
   // Create a new post
   async createPost(postData) {
-    if (!postData.authorId || !postData.content) {
+    const allowedTypes = new Set(['portfolio', 'project', 'skill', 'achievement', 'tutorial', 'update'])
+    const normalizedContent = (postData?.content || '').toString().trim()
+    const normalizedTitle = (postData?.title || '').toString().trim()
+    const normalizedType = allowedTypes.has(postData?.type) ? postData.type : 'update'
+    const normalizedImage = (postData?.image || '').toString().trim()
+    const normalizedVideo = (postData?.video || '').toString().trim()
+    const normalizedProjectLink = (postData?.projectLink || '').toString().trim()
+
+    if (!postData.authorId || !normalizedContent) {
       const error = 'Author and content are required'
       console.error('Create post validation error:', error)
       return { success: false, error }
     }
+
+    if (normalizedContent.length > 2200) {
+      const error = 'Post content is too long'
+      console.error('Create post validation error:', error)
+      return { success: false, error }
+    }
+
+    const uniqueTags = [...new Set(((postData?.tags || [])
+      .map((tag) => (tag || '').toString().trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 10)))]
 
     try {
       console.log('Creating post in Firebase:', postData)
@@ -1603,10 +1622,13 @@ class FirebaseRealtimeService {
       const postObject = {
         id: postId,
         authorId: postData.authorId,
-        content: postData.content,
-        image: postData.image || null,
-        video: postData.video || null,
-        tags: postData.tags || [],
+        type: normalizedType,
+        title: normalizedTitle || null,
+        content: normalizedContent,
+        projectLink: normalizedProjectLink || null,
+        image: normalizedImage || null,
+        video: normalizedVideo || null,
+        tags: uniqueTags,
         createdAt: serverTimestamp(),
         likesCount: 0,
         commentsCount: 0,
