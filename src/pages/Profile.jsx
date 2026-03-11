@@ -352,6 +352,12 @@ const Profile = () => {
     })
   }, [achievements, badgeStats])
 
+  const interestTopics = useMemo(() => {
+    const teaching = user?.skills?.teaching || []
+    const learning = user?.skills?.learning || []
+    return [...new Set([...teaching, ...learning])].slice(0, 10)
+  }, [user])
+
   const handleAvatarUpload = async (event) => {
     const file = event.target.files?.[0]
     if (!file || !isOwnProfile || !profileUserId) return
@@ -694,53 +700,34 @@ const Profile = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                 <div className="p-4 rounded-xl border border-gray-100 bg-white">
-                  <p className="text-xs text-gray-500">Teaching Skills</p>
-                  <p className="text-2xl font-bold text-gray-900">{(user.skills?.teaching || []).length}</p>
-                </div>
-                <div className="p-4 rounded-xl border border-gray-100 bg-white">
-                  <p className="text-xs text-gray-500">Learning Goals</p>
-                  <p className="text-2xl font-bold text-gray-900">{(user.skills?.learning || []).length}</p>
-                </div>
-                <div className="p-4 rounded-xl border border-gray-100 bg-white">
                   <p className="text-xs text-gray-500">Posts Created</p>
                   <p className="text-2xl font-bold text-gray-900">{userPosts.length}</p>
                 </div>
+                <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-xs text-gray-500">Followers</p>
+                  <p className="text-2xl font-bold text-gray-900">{followersCount}</p>
+                </div>
+                <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-xs text-gray-500">Groups Joined</p>
+                  <p className="text-2xl font-bold text-gray-900">{groupsJoined}</p>
+                </div>
               </div>
 
-              {((user.skills?.teaching || []).length > 0 || (user.skills?.learning || []).length > 0) ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-4 rounded-xl border border-gray-100 bg-white">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">Top Skills to Teach</p>
-                    {(user.skills?.teaching || []).slice(0, 5).map((skill) => (
-                      <span
-                        key={`teach-${skill}`}
-                        className="inline-block mr-2 mb-2 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-sm font-medium"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                    {(user.skills?.teaching || []).length === 0 && (
-                      <p className="text-sm text-gray-500">No teaching skills yet.</p>
-                    )}
-                  </div>
-                  <div className="p-4 rounded-xl border border-gray-100 bg-white">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">Top Learning Interests</p>
-                    {(user.skills?.learning || []).slice(0, 5).map((skill) => (
-                      <span
-                        key={`learn-${skill}`}
-                        className="inline-block mr-2 mb-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-medium"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                    {(user.skills?.learning || []).length === 0 && (
-                      <p className="text-sm text-gray-500">No learning skills yet.</p>
-                    )}
-                  </div>
+              {interestTopics.length > 0 ? (
+                <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Top Interests</p>
+                  {interestTopics.map((topic) => (
+                    <span
+                      key={`topic-${topic}`}
+                      className="inline-block mr-2 mb-2 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-sm font-medium"
+                    >
+                      {topic}
+                    </span>
+                  ))}
                 </div>
               ) : (
                 <div className="p-4 rounded-xl border border-dashed border-gray-200 bg-white text-sm text-gray-600">
-                  Skills are empty right now. Add them in Edit Profile to make matching and discovery better.
+                  Add interests in Edit Profile to make your account easier for other students to discover.
                 </div>
               )}
             </Card>
