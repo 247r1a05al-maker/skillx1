@@ -23,7 +23,7 @@ import {
   FiImage,
   FiVideo,
 } from 'react-icons/fi'
-import { Card, Button, Badge } from '../components/UI'
+import { Card, Button } from '../components/UI'
 import Avatar from '../components/Avatar'
 import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
@@ -565,19 +565,6 @@ const Profile = () => {
     )
   }
 
-  const skillVisual = (skill) => {
-    const value = (skill || '').toString()
-    const hash = value.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
-    const stars = 3 + (hash % 3) // 3..5
-    const pct = Math.max(45, Math.min(95, Math.round((stars / 5) * 100)))
-    const barStyles = [
-      'bg-gradient-to-r from-indigo-500 to-purple-500',
-      'bg-gradient-to-r from-emerald-500 to-teal-500',
-      'bg-gradient-to-r from-sky-500 to-indigo-500',
-    ]
-    return { stars, pct, barClass: barStyles[hash % barStyles.length] }
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 pt-20 pb-8">
       <div className="max-w-6xl mx-auto px-4 space-y-4">
@@ -697,53 +684,64 @@ const Profile = () => {
         {activeTab === 'profile' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <Card className="lg:col-span-2">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Skills | Teach</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Profile Highlights</h2>
+              <div className="p-4 rounded-xl border border-gray-100 bg-gray-50 mb-4">
+                <p className="text-sm font-semibold text-gray-700 mb-1">About</p>
+                <p className="text-gray-700">
+                  {user.bio?.trim() || 'Add a short bio from Edit Profile to help others understand what you do.'}
+                </p>
+              </div>
 
-              {(user.skills?.teaching || []).length > 0 ? (
-                <div className="space-y-3 mb-6">
-                  {(user.skills?.teaching || []).slice(0, 6).map((skill) => {
-                    const v = skillVisual(skill)
-                    return (
-                      <div key={`teach-${skill}`} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="font-semibold text-gray-900 truncate">{skill}</p>
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <span
-                                key={`${skill}-star-${i}`}
-                                className={i < v.stars ? 'text-yellow-400' : 'text-gray-300'}
-                                aria-hidden
-                              >
-                                ★
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div className={`h-full ${v.barClass}`} style={{ width: `${v.pct}%` }} />
-                        </div>
-                      </div>
-                    )
-                  })}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-xs text-gray-500">Teaching Skills</p>
+                  <p className="text-2xl font-bold text-gray-900">{(user.skills?.teaching || []).length}</p>
+                </div>
+                <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-xs text-gray-500">Learning Goals</p>
+                  <p className="text-2xl font-bold text-gray-900">{(user.skills?.learning || []).length}</p>
+                </div>
+                <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-xs text-gray-500">Posts Created</p>
+                  <p className="text-2xl font-bold text-gray-900">{userPosts.length}</p>
+                </div>
+              </div>
+
+              {((user.skills?.teaching || []).length > 0 || (user.skills?.learning || []).length > 0) ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Top Skills to Teach</p>
+                    {(user.skills?.teaching || []).slice(0, 5).map((skill) => (
+                      <span
+                        key={`teach-${skill}`}
+                        className="inline-block mr-2 mb-2 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-sm font-medium"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                    {(user.skills?.teaching || []).length === 0 && (
+                      <p className="text-sm text-gray-500">No teaching skills yet.</p>
+                    )}
+                  </div>
+                  <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Top Learning Interests</p>
+                    {(user.skills?.learning || []).slice(0, 5).map((skill) => (
+                      <span
+                        key={`learn-${skill}`}
+                        className="inline-block mr-2 mb-2 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-medium"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                    {(user.skills?.learning || []).length === 0 && (
+                      <p className="text-sm text-gray-500">No learning skills yet.</p>
+                    )}
+                  </div>
                 </div>
               ) : (
-                <p className="text-gray-500 mb-6">No teaching skills added yet.</p>
-              )}
-
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Skills | I Want to Learn</h2>
-              {(user.skills?.learning || []).length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {(user.skills?.learning || []).slice(0, 10).map((skill) => (
-                    <span
-                      key={`learn-${skill}`}
-                      className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-700"
-                    >
-                      {skill}
-                    </span>
-                  ))}
+                <div className="p-4 rounded-xl border border-dashed border-gray-200 bg-white text-sm text-gray-600">
+                  Skills are empty right now. Add them in Edit Profile to make matching and discovery better.
                 </div>
-              ) : (
-                <p className="text-gray-500">No learning skills added yet.</p>
               )}
             </Card>
 
@@ -808,74 +806,42 @@ const Profile = () => {
             </div>
 
             <Card className="lg:col-span-2">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <FiZap className="text-indigo-600" size={20} /> Recent Activity
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <FiAward size={18} className="text-indigo-600" /> Achievements
                 </h3>
-                <Badge variant="secondary">{recentActivity.length} items</Badge>
+                <button className="text-sm text-indigo-600 font-semibold" onClick={() => setActiveTab('badges')}>View all</button>
               </div>
 
-              {recentActivity.length > 0 ? (
-                <div className="space-y-3">
-                  {recentActivity.map((activity) => (
-                    <div key={activity.id} className="p-4 border border-gray-100 rounded-xl bg-white">
-                      <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center text-lg">
-                          {activity.icon || '⚡'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-3">
-                            <p className="font-semibold text-gray-900 truncate">{activity.title}</p>
-                            <p className="text-xs text-gray-500 whitespace-nowrap">{formatDateTime(activity.timestamp)}</p>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-0.5">{activity.description}</p>
-                        </div>
-                      </div>
+              {effectiveBadges.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {effectiveBadges.slice(0, 6).map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className={`rounded-xl p-3 text-white border border-white/20 shadow-sm ${
+                        idx % 3 === 0
+                          ? 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                          : idx % 3 === 1
+                            ? 'bg-gradient-to-br from-purple-500 to-pink-500'
+                            : 'bg-gradient-to-br from-amber-400 to-orange-500'
+                      }`}
+                    >
+                      <div className="text-2xl">{item.icon || '🏆'}</div>
+                      <p className="text-xs font-semibold mt-2 leading-tight line-clamp-2">{item.name}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500">No activity yet.</p>
+                <p className="text-gray-500">No badges unlocked yet.</p>
               )}
             </Card>
 
             <div className="space-y-4">
               <Card>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <FiAward size={18} className="text-indigo-600" /> Achievements
-                  </h3>
-                  <button className="text-sm text-indigo-600 font-semibold" onClick={() => setActiveTab('badges')}>View all</button>
-                </div>
-
-                {effectiveBadges.length > 0 ? (
-                  <div className="grid grid-cols-3 gap-3">
-                    {effectiveBadges.slice(0, 3).map((item, idx) => (
-                      <div
-                        key={item.id}
-                        className={`rounded-xl p-3 text-white border border-white/20 shadow-sm ${
-                          idx === 0
-                            ? 'bg-gradient-to-br from-indigo-500 to-purple-600'
-                            : idx === 1
-                              ? 'bg-gradient-to-br from-purple-500 to-pink-500'
-                              : 'bg-gradient-to-br from-amber-400 to-orange-500'
-                        }`}
-                      >
-                        <div className="text-2xl">{item.icon || '🏆'}</div>
-                        <p className="text-xs font-semibold mt-2 leading-tight line-clamp-2">{item.name}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500">No badges unlocked yet.</p>
-                )}
-              </Card>
-
-              <Card>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-gray-700">Recent activity</p>
-                    <p className="text-xs text-gray-500">Points</p>
+                    <p className="text-sm font-semibold text-gray-700">Community Progress</p>
+                    <p className="text-xs text-gray-500">Level {rankMetrics.level}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
@@ -883,6 +849,16 @@ const Profile = () => {
                     </div>
                     <p className="text-2xl font-bold text-gray-900">{rankMetrics.totalPoints}</p>
                   </div>
+                </div>
+                <div className="mt-3 h-2 rounded-full bg-gray-200 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
+                    style={{ width: `${rankMetrics.progressToNext}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-gray-600">
+                  <span>Rank #{rankMetrics.rank} of {rankMetrics.rankedTotal}</span>
+                  <span>Next level: {rankMetrics.progressToNext}%</span>
                 </div>
               </Card>
             </div>
