@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiSmile, FiPaperclip, FiSend, FiArrowLeft, FiX, FiImage, FiFile, FiTrash2 } from 'react-icons/fi'
+import { FiSearch, FiSmile, FiPaperclip, FiSend, FiArrowLeft, FiX, FiImage, FiFile, FiTrash2, FiVideo, FiDownload } from 'react-icons/fi'
 import { Card, Button } from '../components/UI'
 import { useUserPresence } from '../hooks/useFirebase'
 import { useAuthStore } from '../store'
@@ -9,7 +9,17 @@ import firebaseRealtime from '../services/firebase-realtime'
 import EmojiPicker from 'emoji-picker-react'
 import Avatar from '../components/Avatar'
 
-const EMOJI_GIF_UNLOCK_COST = 25
+const TENOR_API_KEY = import.meta.env.VITE_TENOR_API_KEY || 'LIVDSRZULELA'
+const LOCAL_GIF_PACK = [
+  { id: 'hi', url: 'https://media.tenor.com/6ZUS2Z5lD0AAAAAC/hello-hi.gif' },
+  { id: 'thumbs-up', url: 'https://media.tenor.com/8M53mHk8fE8AAAAC/thumbs-up.gif' },
+  { id: 'laugh', url: 'https://media.tenor.com/LxggFGxwOjIAAAAC/laughing-funny.gif' },
+  { id: 'wow', url: 'https://media.tenor.com/9J8nM8N0MuoAAAAC/wow-amazed.gif' },
+  { id: 'party', url: 'https://media.tenor.com/Do8nZ6f4QfQAAAAC/party-celebrate.gif' },
+  { id: 'clap', url: 'https://media.tenor.com/2roX3uxz_68AAAAC/clapping.gif' },
+  { id: 'ok', url: 'https://media.tenor.com/bm8Q6yAlsPsAAAAC/ok-finger.gif' },
+  { id: 'heart', url: 'https://media.tenor.com/8Q6F2f6t9vYAAAAC/heart-love.gif' },
+]
 
 const Inbox = () => {
   const { user: authUser } = useAuthStore()
@@ -23,16 +33,26 @@ const Inbox = () => {
   const [typingStatus, setTypingStatus] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
-  const [emojiGifUnlocked, setEmojiGifUnlocked] = useState(false)
-  const [isUnlockingEmojiGif, setIsUnlockingEmojiGif] = useState(false)
   const [showAvatarModal, setShowAvatarModal] = useState(false)
   const [avatarModalUrl, setAvatarModalUrl] = useState('')
+  const [showGifPicker, setShowGifPicker] = useState(false)
+  const [gifQuery, setGifQuery] = useState('')
+  const [gifResults, setGifResults] = useState(LOCAL_GIF_PACK)
+  const [isGifLoading, setIsGifLoading] = useState(false)
+  const [previewMedia, setPreviewMedia] = useState(null)
   const messagesEndRef = useRef(null)
   const emojiPickerRef = useRef(null)
   const attachMenuRef = useRef(null)
 
   const selectedUserId = selectedConversation?.participantId || selectedConversation?.id
   const { isOnline: isSelectedOnline } = useUserPresence(selectedUserId)
+
+  const isPreviewableAvatar = (value) => {
+    if (!value || typeof value !== 'string') return false
+    const lower = value.toLowerCase()
+    // Block SVG/default generator avatars from opening in modal
+    return !lower.includes('dicebear') && !lower.includes('.svg') && !lower.includes('image/svg')
+  }
 
   // Handle user query parameter to create/open conversation
   useEffect(() => {
@@ -94,20 +114,39 @@ const Inbox = () => {
     return () => unsubscribe?.()
   }, [selectedConversation, authUser])
 
-  // Load emoji/gif unlock status
-  useEffect(() => {
-    if (!authUser) return
-
-    const loadUnlockStatus = async () => {
-      const userId = authUser.uid || authUser.id
-      const result = await firebaseRealtime.getEmojiGifUnlockStatus(userId)
-      if (result.success) {
-        setEmojiGifUnlocked(!!result.unlocked)
-      }
+  const normalizeTimestamp = (value) => {
+    if (!value) return null
+    if (typeof value === 'number') return value
+    if (typeof value === 'string') {
+      const parsedDate = new Date(value).getTime()
+      if (!Number.isNaN(parsedDate)) return parsedDate
+      const parsedNumber = Number(value)
+      return Number.isFinite(parsedNumber) ? parsedNumber : null
     }
+    if (typeof value === 'object' && typeof value.seconds === 'number') {
+      return value.seconds * 1000
+    }
+    return null
+  }
 
-    loadUnlockStatus()
-  }, [authUser])
+  const formatMessageTime = (timestamp) => {
+    const normalized = normalizeTimestamp(timestamp)
+    if (!normalized) return 'Now'
+    return new Date(normalized).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const sendAttachmentMessage = async (payload) => {
+    if (!selectedConversation || !authUser) return
+    const userId = authUser.uid || authUser.id
+    const conversationId = [userId, selectedConversation.id].sort().join('_')
+    await firebaseRealtime.sendMessage(conversationId, {
+      ...payload,
+      senderId: userId,
+      senderName: authUser.name || authUser.displayName || 'User',
+      senderAvatar: authUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+      timestamp: new Date().toISOString(),
+    })
+  }
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation || !authUser) return
@@ -168,59 +207,146 @@ const Inbox = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Handle file attachment
-  const handleFileAttach = () => {
-    alert('File attachment feature - coming soon!')
-    setShowAttachMenu(false)
-  }
+  // Hidden file input refs
+  const imageInputRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const videoInputRef = useRef(null)
 
   // Handle image attachment
   const handleImageAttach = () => {
-    alert('Image attachment feature - coming soon!')
+    imageInputRef.current?.click()
     setShowAttachMenu(false)
   }
 
-  const ensureEmojiGifUnlocked = async (featureName = 'this feature') => {
-    if (emojiGifUnlocked) return true
-    if (!authUser || isUnlockingEmojiGif) return false
-
-    const shouldUnlock = window.confirm(
-      `Unlock Emojis + GIFs for ${EMOJI_GIF_UNLOCK_COST} coins to use ${featureName}?`
-    )
-
-    if (!shouldUnlock) return false
-
-    setIsUnlockingEmojiGif(true)
-    try {
-      const userId = authUser.uid || authUser.id
-      const result = await firebaseRealtime.unlockEmojiGifFeatures(userId)
-
-      if (result.success) {
-        setEmojiGifUnlocked(true)
-        alert(result.alreadyUnlocked ? 'Emojis & GIFs are already unlocked.' : `Unlocked Emojis & GIFs! ${EMOJI_GIF_UNLOCK_COST} coins deducted.`)
-        return true
-      }
-
-      alert(result.error || 'Unable to unlock Emojis & GIFs')
-      return false
-    } catch (error) {
-      console.error('Error unlocking emoji/gif features:', error)
-      alert('Unable to unlock Emojis & GIFs')
-      return false
-    } finally {
-      setIsUnlockingEmojiGif(false)
-    }
+  // Handle video attachment
+  const handleVideoAttach = () => {
+    videoInputRef.current?.click()
+    setShowAttachMenu(false)
   }
 
-  const handleGifAttach = async () => {
-    const unlocked = await ensureEmojiGifUnlocked('GIFs')
-    if (!unlocked) {
-      setShowAttachMenu(false)
+  // Handle file attachment
+  const handleFileAttach = () => {
+    fileInputRef.current?.click()
+    setShowAttachMenu(false)
+  }
+
+  // Handle selected image/gif file
+  const handleImageFileSelected = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image too large. Max 2MB.')
+      e.target.value = ''
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result
+      const isGif = file.type === 'image/gif'
+      await sendAttachmentMessage({
+        text: '',
+        image: isGif ? undefined : dataUrl,
+        gif: isGif ? dataUrl : undefined,
+        fileType: file.type,
+      })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  // Handle selected video file
+  const handleVideoFileSelected = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Video too large. Max 10MB.')
+      e.target.value = ''
       return
     }
 
-    alert('GIF feature - coming soon!')
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result
+      await sendAttachmentMessage({
+        text: '',
+        video: dataUrl,
+        fileType: file.type,
+        fileName: file.name,
+      })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  // Handle file selected for generic file
+  const handleGenericFileSelected = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File too large. Max 5MB.')
+      e.target.value = ''
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target.result
+      await sendAttachmentMessage({
+        text: `📎 ${file.name}`,
+        file: dataUrl,
+        fileName: file.name,
+        fileType: file.type,
+      })
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const handleGifAttach = () => {
+    setShowGifPicker((prev) => !prev)
     setShowAttachMenu(false)
+  }
+
+  const searchGifs = async (query) => {
+    const clean = query.trim()
+    setIsGifLoading(true)
+    try {
+      const endpoint = clean
+        ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(clean)}&key=${TENOR_API_KEY}&client_key=skill_exchange_platform&limit=24&media_filter=tinygif,gif`
+        : `https://tenor.googleapis.com/v2/featured?key=${TENOR_API_KEY}&client_key=skill_exchange_platform&limit=24&media_filter=tinygif,gif`
+
+      const response = await fetch(endpoint)
+      if (!response.ok) throw new Error('Failed to fetch GIFs')
+      const data = await response.json()
+      const results = (data.results || [])
+        .map((item) => ({
+          id: item.id,
+          url: item.media_formats?.tinygif?.url || item.media_formats?.gif?.url,
+        }))
+        .filter((item) => !!item.url)
+
+      setGifResults(results.length > 0 ? results : LOCAL_GIF_PACK)
+    } catch (error) {
+      console.error('GIF search failed, using local pack:', error)
+      setGifResults(LOCAL_GIF_PACK)
+    } finally {
+      setIsGifLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (showGifPicker) {
+      searchGifs(gifQuery)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showGifPicker])
+
+  const handleSendGif = async (gifUrl) => {
+    await sendAttachmentMessage({
+      text: '',
+      gif: gifUrl,
+      fileType: 'image/gif',
+    })
+    setShowGifPicker(false)
   }
 
   // Delete conversation
@@ -246,7 +372,12 @@ const Inbox = () => {
   }
 
   return (
-    <div className="w-full h-[calc(100vh-80px)] flex gap-0 bg-gray-50">
+    <div className="w-full h-[calc(100vh-80px)] min-h-0 flex gap-0 bg-gray-50 overflow-hidden">
+      {/* Hidden file inputs */}
+      <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFileSelected} />
+      <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoFileSelected} />
+      <input ref={fileInputRef} type="file" className="hidden" onChange={handleGenericFileSelected} />
+
       {/* Conversations List */}
       <Card className="w-full lg:w-80 hidden lg:flex flex-col p-0 overflow-hidden shadow-none bg-white border-r border-gray-200 rounded-none">
         {/* Search */}
@@ -300,6 +431,7 @@ const Inbox = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
+                          if (!isPreviewableAvatar(conv.avatar)) return
                           setAvatarModalUrl(conv.avatar)
                           setShowAvatarModal(true)
                         }}
@@ -385,7 +517,7 @@ const Inbox = () => {
 
       {/* Chat Area */}
       {selectedConversation ? (
-        <Card className="flex-1 p-0 overflow-hidden flex flex-col h-full shadow-none bg-white border-l-0 border border-gray-200 rounded-none">
+        <Card className="flex-1 min-h-0 p-0 overflow-hidden flex flex-col h-full shadow-none bg-white border-l-0 border border-gray-200 rounded-none">
           {/* Chat Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white sticky top-0 text-gray-900 shadow-sm">
             <div className="flex items-center gap-3">
@@ -397,6 +529,7 @@ const Inbox = () => {
               </button>
               <button
                 onClick={() => {
+                  if (!isPreviewableAvatar(selectedConversation.avatar)) return
                   setAvatarModalUrl(selectedConversation.avatar)
                   setShowAvatarModal(true)
                 }}
@@ -418,7 +551,7 @@ const Inbox = () => {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-white">
             {isLoadingMessages ? (
               <div className="flex items-center justify-center h-full">
                 <motion.div
@@ -443,7 +576,7 @@ const Inbox = () => {
                   const isOwnMessage = msg.senderId === (authUser?.uid || authUser?.id)
                   return (
                     <motion.div
-                      key={idx}
+                      key={msg.id || idx}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
@@ -458,9 +591,44 @@ const Inbox = () => {
                               : 'bg-white/90 text-gray-900 border border-white/30 rounded-bl-none'
                           }`}
                         >
-                          <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
+                          {(msg.image || msg.gif) && (
+                            <button
+                              onClick={() => setPreviewMedia({ type: 'image', url: msg.image || msg.gif })}
+                              className="block"
+                              title="Preview image"
+                            >
+                              <img
+                                src={msg.image || msg.gif}
+                                alt="Attachment"
+                                className="max-w-[220px] rounded-xl mt-1 hover:opacity-90 transition"
+                              />
+                            </button>
+                          )}
+
+                          {msg.video && (
+                            <video
+                              src={msg.video}
+                              controls
+                              className="max-w-[220px] rounded-xl mt-1 bg-black"
+                            />
+                          )}
+
+                          {msg.file && (
+                            <a
+                              href={msg.file}
+                              download={msg.fileName || 'attachment'}
+                              className={`mt-1 inline-flex items-center gap-2 text-sm font-semibold underline ${isOwnMessage ? 'text-white' : 'text-indigo-700'}`}
+                              title="Download file"
+                            >
+                              <FiDownload size={14} />
+                              <span>{msg.fileName || 'Download file'}</span>
+                            </a>
+                          )}
+
+                          {msg.text && <p className="text-sm font-medium leading-relaxed mt-1">{msg.text}</p>}
+
                           <p className={`text-xs mt-2 ${isOwnMessage ? 'text-blue-100/80' : 'text-gray-500'}`}>
-                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {formatMessageTime(msg.timestamp)}
                           </p>
                         </motion.div>
                         
@@ -502,8 +670,8 @@ const Inbox = () => {
           </div>
 
           {/* Message Input */}
-          <div className="p-4 bg-white border-t border-gray-200 sticky bottom-0">
-            <div className="flex items-center gap-2 relative">
+          <div className="border-t border-gray-200 bg-white px-4 py-3 shrink-0">
+            <div className="flex items-center gap-2 relative w-full rounded-xl border border-gray-200 bg-white px-2 py-1.5 shadow-sm">
               {/* Attach Button with Menu */}
               <div className="relative" ref={attachMenuRef}>
                 <motion.button
@@ -529,7 +697,7 @@ const Inbox = () => {
                       className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition w-full text-left text-sm"
                     >
                       <FiSmile size={16} className="text-gray-600" />
-                      <span className="text-gray-700 text-sm">Send GIF {!emojiGifUnlocked ? `(${EMOJI_GIF_UNLOCK_COST} coins)` : ''}</span>
+                      <span className="text-gray-700 text-sm">Search GIF</span>
                     </button>
                     <button
                       onClick={handleImageAttach}
@@ -537,6 +705,13 @@ const Inbox = () => {
                     >
                       <FiImage size={16} className="text-gray-600" />
                       <span className="text-gray-700 text-sm">Send Image</span>
+                    </button>
+                    <button
+                      onClick={handleVideoAttach}
+                      className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition w-full text-left border-t border-gray-100"
+                    >
+                      <FiVideo size={16} className="text-gray-600" />
+                      <span className="text-gray-700 text-sm">Send Video</span>
                     </button>
                     <button
                       onClick={handleFileAttach}
@@ -555,7 +730,7 @@ const Inbox = () => {
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-300 placeholder:text-gray-400 font-medium text-gray-900"
+                className="flex-1 px-3 py-2 bg-transparent border-0 rounded-lg focus:outline-none focus:ring-0 placeholder:text-gray-400 font-medium text-gray-900"
               />
 
               {/* Emoji Button with Picker */}
@@ -563,22 +738,12 @@ const Inbox = () => {
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={async () => {
-                    const unlocked = await ensureEmojiGifUnlocked('Emojis')
-                    if (!unlocked) return
-                    setShowEmojiPicker(!showEmojiPicker)
-                  }}
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                   className="p-2 hover:bg-gray-100 rounded-lg transition"
-                  title={emojiGifUnlocked ? 'Add emoji' : `Unlock Emojis + GIFs (${EMOJI_GIF_UNLOCK_COST} coins)`}
+                  title="Add emoji"
                 >
                   <FiSmile size={18} className="text-gray-600" />
                 </motion.button>
-
-                {!emojiGifUnlocked && (
-                  <span className="absolute -top-2 -right-2 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold border border-amber-300">
-                    {EMOJI_GIF_UNLOCK_COST}
-                  </span>
-                )}
 
                 {/* Emoji Picker */}
                 {showEmojiPicker && (
@@ -605,6 +770,48 @@ const Inbox = () => {
                 <FiSend size={18} />
               </motion.button>
             </div>
+
+            {showGifPicker && (
+              <div className="mt-3 border border-gray-200 rounded-xl p-3 bg-gray-50">
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={gifQuery}
+                    onChange={(e) => setGifQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') searchGifs(gifQuery)
+                    }}
+                    placeholder="Search GIFs (happy, wow, hello...)"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <Button size="sm" onClick={() => searchGifs(gifQuery)}>Search</Button>
+                  <button
+                    onClick={() => setShowGifPicker(false)}
+                    className="text-gray-500 hover:text-gray-700 px-2 py-1"
+                    title="Close GIF picker"
+                  >
+                    <FiX size={16} />
+                  </button>
+                </div>
+
+                {isGifLoading ? (
+                  <p className="text-sm text-gray-500">Loading GIFs...</p>
+                ) : (
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-40 overflow-y-auto">
+                    {gifResults.map((gif) => (
+                      <button
+                        key={gif.id}
+                        onClick={() => handleSendGif(gif.url)}
+                        className="rounded-lg overflow-hidden border border-gray-200 hover:border-indigo-400"
+                        title="Send GIF"
+                      >
+                        <img src={gif.url} alt="GIF" className="w-full h-16 object-cover" loading="lazy" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </Card>
       ) : (
@@ -615,6 +822,50 @@ const Inbox = () => {
           </div>
         </div>
       )}
+
+      {/* Attachment Preview Modal */}
+      <AnimatePresence>
+        {previewMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            onClick={() => setPreviewMedia(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="relative max-w-4xl max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setPreviewMedia(null)}
+                className="absolute -top-3 -right-3 bg-white rounded-full p-1.5 shadow hover:bg-gray-100 z-10"
+                title="Close preview"
+              >
+                <FiX size={18} className="text-gray-700" />
+              </button>
+
+              {previewMedia.type === 'image' ? (
+                <img
+                  src={previewMedia.url}
+                  alt="Attachment preview"
+                  className="max-w-full max-h-[85vh] rounded-xl shadow-2xl"
+                />
+              ) : (
+                <video
+                  src={previewMedia.url}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-[85vh] rounded-xl shadow-2xl bg-black"
+                />
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Avatar Preview Modal */}
       <AnimatePresence>

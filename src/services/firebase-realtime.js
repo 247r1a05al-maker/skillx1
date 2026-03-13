@@ -284,7 +284,7 @@ class FirebaseRealtimeService {
             ...conv,
             id: conv.participantId, // Use participant ID for easy access
             name: otherUser.name,
-            avatar: otherUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.participantId}`,
+            avatar: otherUser.avatar || '',
             bio: otherUser.bio || '',
             isOnline: otherUser.isOnline || false,
             lastMessage: conv.lastMessage || 'No messages yet',
@@ -317,8 +317,22 @@ class FirebaseRealtimeService {
           ...childSnapshot.val(),
         })
       })
-      // Sort by timestamp
-      msgs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+      // Sort by timestamp safely (supports ISO, epoch, or missing legacy values)
+      const normalizeTs = (value) => {
+        if (!value) return 0
+        if (typeof value === 'number') return value
+        if (typeof value === 'string') {
+          const fromDate = new Date(value).getTime()
+          if (!Number.isNaN(fromDate)) return fromDate
+          const fromNumber = Number(value)
+          return Number.isFinite(fromNumber) ? fromNumber : 0
+        }
+        if (typeof value === 'object' && typeof value.seconds === 'number') {
+          return value.seconds * 1000
+        }
+        return 0
+      }
+      msgs.sort((a, b) => normalizeTs(a.timestamp) - normalizeTs(b.timestamp))
       callback(msgs)
     })
     
@@ -330,17 +344,30 @@ class FirebaseRealtimeService {
   async sendMessage(conversationId, message) {
     const messagesRef = ref(realtimeDb, `messages/${conversationId}`)
     const newMessageRef = push(messagesRef)
+    const timestamp = message.timestamp || new Date().toISOString()
+
+    const attachmentSummary = message.image
+      ? '📷 Image'
+      : message.gif
+        ? '🎞 GIF'
+        : message.video
+          ? '🎬 Video'
+          : message.file
+            ? `📎 ${message.fileName || 'File'}`
+            : ''
+    const summaryText = (message.text || '').trim() || attachmentSummary || 'Message'
     
     await set(newMessageRef, {
       ...message,
+      timestamp,
       id: newMessageRef.key,
     })
 
     // Update conversation last message
     const conversationRef = ref(realtimeDb, `conversations/${conversationId}`)
     await update(conversationRef, {
-      lastMessage: message.text,
-      lastMessageTime: new Date().toISOString(),
+      lastMessage: summaryText,
+      lastMessageTime: timestamp,
     })
 
     return newMessageRef.key
@@ -1590,6 +1617,7 @@ class FirebaseRealtimeService {
     const normalizedContent = (postData?.content || '').toString().trim()
     const normalizedTitle = (postData?.title || '').toString().trim()
     const normalizedType = allowedTypes.has(postData?.type) ? postData.type : 'update'
+    const normalizedVisibility = postData?.visibility === 'profile' ? 'profile' : 'community'
     const normalizedImage = (postData?.image || '').toString().trim()
     const normalizedVideo = (postData?.video || '').toString().trim()
     const normalizedProjectLink = (postData?.projectLink || '').toString().trim()
@@ -1623,6 +1651,7 @@ class FirebaseRealtimeService {
         id: postId,
         authorId: postData.authorId,
         type: normalizedType,
+        visibility: normalizedVisibility,
         title: normalizedTitle || null,
         content: normalizedContent,
         projectLink: normalizedProjectLink || null,
@@ -1644,7 +1673,7 @@ class FirebaseRealtimeService {
       const contentPreview = postData.content.substring(0, 40) + (postData.content.length > 40 ? '...' : '')
       await this.logUserActivity(postData.authorId, {
         type: 'post_created',
-        title: 'Posted in community',
+        title: normalizedVisibility === 'profile' ? 'Posted on profile' : 'Posted in community',
         description: contentPreview,
         icon: '📝',
       })
@@ -1665,7 +1694,11 @@ class FirebaseRealtimeService {
       const posts = []
       if (snapshot.exists()) {
         snapshot.forEach((childSnapshot) => {
-          posts.push(childSnapshot.val())
+          const post = childSnapshot.val()
+          // Keep community feed clean: hide profile-only posts.
+          if (post?.visibility !== 'profile') {
+            posts.push(post)
+          }
         })
       }
       // Sort by createdAt (newest first)

@@ -22,6 +22,8 @@ import {
   FiLink,
   FiImage,
   FiVideo,
+  FiHeart,
+  FiTrash2,
 } from 'react-icons/fi'
 import { Card, Button } from '../components/UI'
 import Avatar from '../components/Avatar'
@@ -29,6 +31,7 @@ import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
 import { userProfileService } from '../services/user-profile'
 import { calculateBadges, BADGES } from '../utils/badges'
+import { useToast } from '../hooks/useToast'
 
 const LEVEL_POINTS = 120
 
@@ -115,6 +118,63 @@ const DEFAULT_POST_FORM = {
   tags: '',
 }
 
+const POST_TYPE_FORM_COPY = {
+  portfolio: {
+    titlePlaceholder: 'e.g., Frontend Portfolio 2026',
+    contentPlaceholder: 'Share portfolio highlights, your best case studies, tools used, and outcomes...',
+    contentTemplate: 'Highlights:\n-\n\nTools used:\n-\n\nWhat I learned:\n-',
+    linkLabel: 'Portfolio Link',
+    linkPlaceholder: 'https://behance.net/... or https://dribbble.com/...',
+    tagsPlaceholder: 'portfolio, uiux, frontend, case-study',
+    minLength: 30,
+  },
+  project: {
+    titlePlaceholder: 'e.g., Real-time Chat App with React + Firebase',
+    contentPlaceholder: 'Describe the problem, features, stack, architecture, and your contribution...',
+    contentTemplate: 'Problem solved:\n\nCore features:\n-\n\nTech stack:\n-\n\nMy contribution:\n-',
+    linkLabel: 'Project Repo / Live Link',
+    linkPlaceholder: 'https://github.com/... or https://your-demo.app',
+    tagsPlaceholder: 'project, react, firebase, realtime',
+    minLength: 40,
+  },
+  skill: {
+    titlePlaceholder: 'e.g., JavaScript Closures Demo',
+    contentPlaceholder: 'Explain the skill you are demonstrating and what others should learn from it...',
+    contentTemplate: 'Skill demonstrated:\n\nDemo steps:\n1.\n2.\n\nKey takeaway:\n',
+    linkLabel: 'Demo Link',
+    linkPlaceholder: 'https://youtube.com/... or https://codesandbox.io/...',
+    tagsPlaceholder: 'skill-demo, javascript, learning',
+    minLength: 25,
+  },
+  achievement: {
+    titlePlaceholder: 'e.g., Won Hackathon - 1st Place',
+    contentPlaceholder: 'Share what you achieved, context, metrics, and impact...',
+    contentTemplate: 'Achievement:\n\nContext:\n\nImpact:\n',
+    linkLabel: 'Proof / Certificate Link',
+    linkPlaceholder: 'https://certificate-link.com/... (optional)',
+    tagsPlaceholder: 'achievement, hackathon, milestone',
+    minLength: 20,
+  },
+  tutorial: {
+    titlePlaceholder: 'e.g., Beginner Guide to React Hooks',
+    contentPlaceholder: 'Write a clear tutorial summary, prerequisites, and steps...',
+    contentTemplate: 'What you will learn:\n\nPrerequisites:\n\nSteps:\n1.\n2.\n3.\n',
+    linkLabel: 'Tutorial Link',
+    linkPlaceholder: 'https://blog.com/tutorial or https://video-link.com',
+    tagsPlaceholder: 'tutorial, guide, learning',
+    minLength: 35,
+  },
+  update: {
+    titlePlaceholder: 'e.g., Weekly Learning Update',
+    contentPlaceholder: 'Share your latest update with the community...',
+    contentTemplate: 'Update:\n\nNext steps:\n',
+    linkLabel: 'Reference Link',
+    linkPlaceholder: 'https://optional-reference-link.com',
+    tagsPlaceholder: 'update, progress, community',
+    minLength: 10,
+  },
+}
+
 const isValidHttpUrl = (value) => {
   if (!value) return true
   try {
@@ -125,10 +185,67 @@ const isValidHttpUrl = (value) => {
   }
 }
 
+// Per-type display metadata (all classes static for Tailwind JIT)
+const POST_TYPE_META = {
+  portfolio:   { icon: FiBriefcase,  label: 'Portfolio',   bgClass: 'bg-indigo-100',  textClass: 'text-indigo-600',  pillClass: 'bg-indigo-50 text-indigo-700',   stripClass: 'bg-indigo-400' },
+  project:     { icon: FiCode,       label: 'Project',     bgClass: 'bg-purple-100',  textClass: 'text-purple-600',  pillClass: 'bg-purple-50 text-purple-700',   stripClass: 'bg-purple-400' },
+  skill:       { icon: FiZap,        label: 'Skill Demo',  bgClass: 'bg-blue-100',    textClass: 'text-blue-600',    pillClass: 'bg-blue-50 text-blue-700',       stripClass: 'bg-blue-400' },
+  achievement: { icon: FiStar,       label: 'Achievement', bgClass: 'bg-amber-100',   textClass: 'text-amber-600',   pillClass: 'bg-amber-50 text-amber-700',     stripClass: 'bg-amber-400' },
+  tutorial:    { icon: FiBookOpen,   label: 'Tutorial',    bgClass: 'bg-emerald-100', textClass: 'text-emerald-600', pillClass: 'bg-emerald-50 text-emerald-700', stripClass: 'bg-emerald-400' },
+  update:      { icon: FiTrendingUp, label: 'Update',      bgClass: 'bg-slate-100',   textClass: 'text-slate-600',   pillClass: 'bg-slate-50 text-slate-700',     stripClass: 'bg-slate-400' },
+}
+
+// Strips the auto-generated header line and trailing link line from stored content
+const extractPostBody = (post) => {
+  if (!post.content) return ''
+  let text = post.content
+  if (post.type) {
+    const nlIdx = text.indexOf('\n')
+    if (nlIdx > -1) text = text.slice(nlIdx + 1)
+    text = text.replace(/^\n+/, '')
+  }
+  const linkIdx = text.lastIndexOf('\n\n🔗 Link:')
+  if (linkIdx > -1) text = text.slice(0, linkIdx)
+  return text.trim()
+}
+
+// Parses text and wraps URLs in clickable blue <a> tags
+const renderTextWithLinks = (text) => {
+  if (!text) return null
+  const urlRegex = /https?:\/\/[^\s]+/g
+  const parts = []
+  let lastIndex = 0
+  let match
+  while ((match = urlRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    const url = match[0]
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 underline hover:text-blue-800 break-all font-medium"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {url}
+      </a>
+    )
+    lastIndex = match.index + url.length
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+  return parts
+}
+
 const Profile = () => {
   const navigate = useNavigate()
   const { userId: paramUserId } = useParams()
   const { user: authUser, isAuthenticated } = useAuthStore()
+  const { success: showToast } = useToast()
 
   const [user, setUser] = useState(null)
   const [isOwnProfile, setIsOwnProfile] = useState(false)
@@ -155,6 +272,12 @@ const Profile = () => {
 
   const [showCreatePostModal, setShowCreatePostModal] = useState(false)
   const [isCreatingPost, setIsCreatingPost] = useState(false)
+  const [isDeletingPost, setIsDeletingPost] = useState(false)
+  const [isLikingPost, setIsLikingPost] = useState(false)
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [likedPostIds, setLikedPostIds] = useState({})
+  const [postComments, setPostComments] = useState([])
+  const [newCommentText, setNewCommentText] = useState('')
   const [postForm, setPostForm] = useState(DEFAULT_POST_FORM)
   const [postFormError, setPostFormError] = useState('')
 
@@ -174,6 +297,7 @@ const Profile = () => {
   })
 
   const avatarInputRef = useRef(null)
+  const commentInputRef = useRef(null)
 
   const currentUserId = authUser?.uid || authUser?.id
   const profileUserId = paramUserId || currentUserId
@@ -278,6 +402,45 @@ const Profile = () => {
     }
   }, [isOwnProfile, currentUserId, profileUserId, followersCount])
 
+  useEffect(() => {
+    if (!currentUserId || userPosts.length === 0) {
+      setLikedPostIds({})
+      return
+    }
+
+    let mounted = true
+    ;(async () => {
+      const entries = await Promise.all(
+        userPosts.map(async (post) => [post.id, await firebaseRealtime.checkIfLiked(post.id, currentUserId)])
+      )
+      if (mounted) {
+        setLikedPostIds(Object.fromEntries(entries))
+      }
+    })()
+
+    return () => {
+      mounted = false
+    }
+  }, [userPosts, currentUserId])
+
+  useEffect(() => {
+    if (!showPostModal || !selectedPost?.id) {
+      setPostComments([])
+      return
+    }
+
+    const unsubscribe = firebaseRealtime.subscribeToComments(selectedPost.id, setPostComments)
+    return () => unsubscribe?.()
+  }, [showPostModal, selectedPost?.id])
+
+  useEffect(() => {
+    if (!selectedPost?.id) return
+    const latest = userPosts.find((post) => post.id === selectedPost.id)
+    if (latest && latest !== selectedPost) {
+      setSelectedPost(latest)
+    }
+  }, [userPosts, selectedPost])
+
   const likesReceived = useMemo(
     () => userPosts.reduce((sum, post) => sum + (post.likesCount || 0), 0),
     [userPosts]
@@ -375,6 +538,85 @@ const Profile = () => {
     reader.readAsDataURL(file)
   }
 
+  const handleRemovePhoto = async () => {
+    if (!isOwnProfile || !profileUserId) return
+    if (!user?.avatar) return // already using default
+    setEditForm((prev) => ({ ...prev, avatar: '' }))
+    setUser((prev) => ({ ...prev, avatar: '' }))
+    await userProfileService.updateUserProfile(profileUserId, { avatar: '' })
+    showToast('Photo removed — showing default avatar now')
+  }
+
+  const handleDeletePost = async (postId) => {
+    if (!postId || !currentUserId || isDeletingPost) return
+    if (!window.confirm('Delete this post? This cannot be undone.')) return
+    setIsDeletingPost(true)
+    try {
+      const result = await firebaseRealtime.deletePost(postId, currentUserId)
+      if (result.success) {
+        setUserPosts((prev) => prev.filter((p) => p.id !== postId))
+        setShowPostModal(false)
+        setSelectedPost(null)
+      }
+    } finally {
+      setIsDeletingPost(false)
+    }
+  }
+
+  const handleToggleLike = async (postId) => {
+    if (!postId || !currentUserId || isLikingPost) return
+
+    const wasLiked = !!likedPostIds[postId]
+    const delta = wasLiked ? -1 : 1
+
+    setIsLikingPost(true)
+    setLikedPostIds((prev) => ({ ...prev, [postId]: !wasLiked }))
+    setUserPosts((prev) => prev.map((post) => (
+      post.id === postId
+        ? { ...post, likesCount: Math.max(0, (post.likesCount || 0) + delta) }
+        : post
+    )))
+
+    if (selectedPost?.id === postId) {
+      setSelectedPost((prev) => prev ? { ...prev, likesCount: Math.max(0, (prev.likesCount || 0) + delta) } : prev)
+    }
+
+    const result = await firebaseRealtime.toggleLike(postId, currentUserId)
+    if (!result?.success) {
+      setLikedPostIds((prev) => ({ ...prev, [postId]: wasLiked }))
+      setUserPosts((prev) => prev.map((post) => (
+        post.id === postId
+          ? { ...post, likesCount: Math.max(0, (post.likesCount || 0) - delta) }
+          : post
+      )))
+      if (selectedPost?.id === postId) {
+        setSelectedPost((prev) => prev ? { ...prev, likesCount: Math.max(0, (prev.likesCount || 0) - delta) } : prev)
+      }
+    }
+    setIsLikingPost(false)
+  }
+
+  const handleAddComment = async (postId) => {
+    const text = newCommentText.trim()
+    if (!postId || !currentUserId || !text || isSubmittingComment) return
+
+    setIsSubmittingComment(true)
+    const result = await firebaseRealtime.addComment(postId, currentUserId, text)
+    if (result?.success) {
+      setNewCommentText('')
+      setUserPosts((prev) => prev.map((post) => (
+        post.id === postId
+          ? { ...post, commentsCount: (post.commentsCount || 0) + 1 }
+          : post
+      )))
+      setSelectedPost((prev) => prev && prev.id === postId
+        ? { ...prev, commentsCount: (prev.commentsCount || 0) + 1 }
+        : prev)
+      commentInputRef.current?.focus()
+    }
+    setIsSubmittingComment(false)
+  }
+
   const handleSaveProfile = async () => {
     if (!profileUserId || !isOwnProfile) return
 
@@ -444,6 +686,8 @@ const Profile = () => {
     resetPostForm()
   }
 
+  const activePostTypeCopy = POST_TYPE_FORM_COPY[postForm.type] || POST_TYPE_FORM_COPY.update
+
   const handleCreatePost = async () => {
     const title = postForm.title.trim()
     const content = postForm.content.trim()
@@ -456,8 +700,8 @@ const Profile = () => {
       return
     }
 
-    if (content.length < 10) {
-      setPostFormError('Content must be at least 10 characters.')
+    if (content.length < activePostTypeCopy.minLength) {
+      setPostFormError(`Content must be at least ${activePostTypeCopy.minLength} characters for ${postForm.type} posts.`)
       return
     }
 
@@ -527,6 +771,7 @@ const Profile = () => {
         content: formattedContent,
         title,
         type: postForm.type,
+        visibility: 'profile',
         projectLink: projectLink || null,
         image: imageUrl || null,
         video: videoUrl || null,
@@ -594,13 +839,32 @@ const Profile = () => {
                 />
               </div>
               {isOwnProfile && (
-                <button
-                  onClick={() => avatarInputRef.current?.click()}
-                  className="absolute bottom-2 right-2 bg-indigo-600 text-white p-2 rounded-full shadow hover:bg-indigo-700"
-                  aria-label="Change avatar"
-                >
-                  <FiCamera size={14} />
-                </button>
+                <>
+                  <button
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="absolute bottom-2 right-2 bg-indigo-600 text-white p-2 rounded-full shadow hover:bg-indigo-700"
+                    aria-label="Change avatar"
+                  >
+                    <FiCamera size={14} />
+                  </button>
+                  {user.avatar ? (
+                    <button
+                      onClick={handleRemovePhoto}
+                      className="absolute top-0 right-0 bg-red-500 text-white p-1.5 rounded-full shadow hover:bg-red-600 transition-colors"
+                      aria-label="Remove photo"
+                      title="Remove photo — resets to default avatar"
+                    >
+                      <FiTrash2 size={11} />
+                    </button>
+                  ) : (
+                    <span
+                      className="absolute top-0 right-0 bg-gray-300 text-gray-600 p-1.5 rounded-full shadow text-[9px] font-bold leading-none select-none cursor-default"
+                      title="Using default avatar"
+                    >
+                      DEFAULT
+                    </span>
+                  )}
+                </>
               )}
             </div>
             <input
@@ -610,6 +874,31 @@ const Profile = () => {
               className="hidden"
               onChange={handleAvatarUpload}
             />
+
+            {isOwnProfile && (
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs sm:text-sm font-semibold hover:bg-indigo-100 transition"
+                >
+                  Change Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  disabled={!user?.avatar}
+                  className={`px-3 py-1.5 rounded-lg border text-xs sm:text-sm font-semibold transition ${
+                    user?.avatar
+                      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                      : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  title={user?.avatar ? 'Remove photo and use default avatar' : 'Already using default avatar'}
+                >
+                  {user?.avatar ? 'Remove Photo' : 'Default Avatar'}
+                </button>
+              </div>
+            )}
 
             <h1 className="text-3xl font-bold text-gray-900 mt-4">{user.name}</h1>
             <p className="text-gray-700 mt-1">{user.role || user.title || user.bio || 'Skill Learner'}</p>
@@ -823,32 +1112,7 @@ const Profile = () => {
               )}
             </Card>
 
-            <div className="space-y-4">
-              <Card>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Community Progress</p>
-                    <p className="text-xs text-gray-500">Level {rankMetrics.level}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
-                      🪙
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">{rankMetrics.totalPoints}</p>
-                  </div>
-                </div>
-                <div className="mt-3 h-2 rounded-full bg-gray-200 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-600"
-                    style={{ width: `${rankMetrics.progressToNext}%` }}
-                  />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-gray-600">
-                  <span>Rank #{rankMetrics.rank} of {rankMetrics.rankedTotal}</span>
-                  <span>Next level: {rankMetrics.progressToNext}%</span>
-                </div>
-              </Card>
-            </div>
+
           </div>
         )}
 
@@ -882,25 +1146,111 @@ const Profile = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {userPosts.map((post) => (
-                  <button
-                    key={post.id}
-                    onClick={() => {
-                      setSelectedPost(post)
-                      setShowPostModal(true)
-                    }}
-                    className="w-full text-left p-4 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition"
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <p className="font-semibold text-gray-900 truncate">{post.content?.slice(0, 80) || 'Post'}</p>
-                      <span className="text-xs text-gray-500 whitespace-nowrap">{formatDateTime(post.createdAt)}</span>
-                    </div>
-                    <p className="text-sm text-gray-600 line-clamp-2">{post.content}</p>
-                    <div className="mt-2 text-xs text-gray-500">
-                      Likes {post.likesCount || 0} • Comments {post.commentsCount || 0}
-                    </div>
-                  </button>
-                ))}
+                {userPosts.map((post) => {
+                  const meta = POST_TYPE_META[post.type] || POST_TYPE_META.update
+                  const TypeIcon = meta.icon
+                  const bodyText = extractPostBody(post)
+                  return (
+                    <button
+                      key={post.id}
+                      onClick={() => { setSelectedPost(post); setShowPostModal(true) }}
+                      className="w-full text-left rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all duration-200 overflow-hidden group"
+                    >
+                      {/* Colored top accent strip */}
+                      <div className={`h-1 w-full ${meta.stripClass}`} />
+                      <div className="p-4">
+                        <div className="flex items-start gap-3">
+                          {/* Type icon badge */}
+                          <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${meta.bgClass}`}>
+                            <TypeIcon size={18} className={meta.textClass} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {/* Title + date + delete row */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-gray-900 truncate leading-tight">
+                                  {post.title || meta.label}
+                                </p>
+                                <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 ${meta.pillClass}`}>
+                                  {meta.label}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                                <span className="text-xs text-gray-400 whitespace-nowrap">
+                                  {formatDateTime(post.createdAt)}
+                                </span>
+                                {isOwnProfile && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeletePost(post.id) }}
+                                    className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition"
+                                    title="Delete post"
+                                    disabled={isDeletingPost}
+                                  >
+                                    <FiTrash2 size={14} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            {/* Body preview */}
+                            {bodyText && (
+                              <p className="text-sm text-gray-600 line-clamp-2 mt-2">{bodyText}</p>
+                            )}
+                            {/* Tags */}
+                            {post.tags?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {post.tags.slice(0, 4).map((tag) => (
+                                  <span key={tag} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">#{tag}</span>
+                                ))}
+                              </div>
+                            )}
+                            {/* Project link */}
+                            {post.projectLink && (
+                              <a
+                                href={post.projectLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                              >
+                                <FiLink size={11} />
+                                {post.projectLink.replace(/^https?:\/\//, '').slice(0, 50)}
+                              </a>
+                            )}
+                            {/* Footer stats */}
+                            <div className="flex items-center gap-3 mt-3 pt-2 border-t border-gray-50">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleToggleLike(post.id)
+                                }}
+                                disabled={isLikingPost}
+                                className={`text-xs flex items-center gap-1 px-2 py-1 rounded-md transition ${likedPostIds[post.id] ? 'text-rose-600 bg-rose-50' : 'text-gray-500 hover:bg-gray-100'}`}
+                              >
+                                <FiHeart size={12} className={likedPostIds[post.id] ? 'text-rose-500' : 'text-rose-400'} /> {post.likesCount || 0} Likes
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedPost(post)
+                                  setShowPostModal(true)
+                                }}
+                                className="text-xs text-gray-500 flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 transition"
+                              >
+                                <FiMessageSquare size={12} className="text-indigo-400" /> {post.commentsCount || 0} Comments
+                              </button>
+                              {post.image && (
+                                <span className="text-xs text-gray-400 flex items-center gap-1"><FiImage size={12} /> Photo</span>
+                              )}
+                              {post.video && (
+                                <span className="text-xs text-gray-400 flex items-center gap-1"><FiVideo size={12} /> Video</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </Card>
@@ -1107,7 +1457,16 @@ const Profile = () => {
                       <button
                         type="button"
                         key={type.value}
-                        onClick={() => setPostForm((prev) => ({ ...prev, type: type.value }))}
+                        onClick={() => {
+                          setPostForm((prev) => {
+                            const nextCopy = POST_TYPE_FORM_COPY[type.value] || POST_TYPE_FORM_COPY.update
+                            return {
+                              ...prev,
+                              type: type.value,
+                              content: prev.content.trim() ? prev.content : nextCopy.contentTemplate,
+                            }
+                          })
+                        }}
                         className={`p-3 rounded-lg border-2 transition flex flex-col items-center gap-1 ${
                           isSelected
                             ? type.selectedClass
@@ -1135,7 +1494,7 @@ const Profile = () => {
                   maxLength={120}
                   value={postForm.title}
                   onChange={(e) => setPostForm((prev) => ({ ...prev, title: e.target.value }))}
-                  placeholder="Give your post a catchy title..."
+                  placeholder={activePostTypeCopy.titlePlaceholder}
                 />
               </div>
 
@@ -1148,9 +1507,12 @@ const Profile = () => {
                   maxLength={2000}
                   value={postForm.content}
                   onChange={(e) => setPostForm((prev) => ({ ...prev, content: e.target.value }))}
-                  placeholder="Share your portfolio, project, skill, or update with the community..."
+                  placeholder={activePostTypeCopy.contentPlaceholder}
                 />
-                <p className="text-xs text-gray-500 mt-1">{postForm.content.trim().length}/2000</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-gray-500">Minimum {activePostTypeCopy.minLength} characters for this post type</p>
+                  <p className="text-xs text-gray-500">{postForm.content.trim().length}/2000</p>
+                </div>
               </div>
 
               {/* Image URL */}
@@ -1184,14 +1546,14 @@ const Profile = () => {
               {/* Project Link */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                  <FiLink size={14} /> Project Link <span className="text-gray-400 font-normal">(optional)</span>
+                  <FiLink size={14} /> {activePostTypeCopy.linkLabel} <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
                 <input
                   type="url"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={postForm.projectLink}
                   onChange={(e) => setPostForm((prev) => ({ ...prev, projectLink: e.target.value }))}
-                  placeholder="https://github.com/username/project or live demo link"
+                  placeholder={activePostTypeCopy.linkPlaceholder}
                 />
               </div>
 
@@ -1205,7 +1567,7 @@ const Profile = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   value={postForm.tags}
                   onChange={(e) => setPostForm((prev) => ({ ...prev, tags: e.target.value }))}
-                  placeholder="react, webdev, portfolio, design"
+                  placeholder={activePostTypeCopy.tagsPlaceholder}
                 />
               </div>
             </div>
@@ -1227,32 +1589,139 @@ const Profile = () => {
         </div>
       )}
 
-      {showPostModal && selectedPost && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <FiFileText size={18} /> Post Details
-              </h3>
-              <button onClick={() => setShowPostModal(false)} className="p-1 rounded hover:bg-gray-100">
-                <FiX size={20} />
-              </button>
-            </div>
-            <p className="text-gray-900 whitespace-pre-wrap">{selectedPost.content}</p>
-            {(selectedPost.image || selectedPost.video) && (
-              <div className="mt-3">
-                {selectedPost.image && <img src={selectedPost.image} alt="Post" className="max-h-80 rounded-lg border" />}
-                {selectedPost.video && (
-                  <video src={selectedPost.video} controls className="w-full max-h-80 rounded-lg border" />
+      {showPostModal && selectedPost && (() => {
+        const meta = POST_TYPE_META[selectedPost.type] || POST_TYPE_META.update
+        const TypeIcon = meta.icon
+        const bodyText = extractPostBody(selectedPost)
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <Card className="w-full max-w-2xl overflow-hidden p-0">
+              {/* Colored header bar */}
+              <div className={`h-1.5 w-full ${meta.stripClass}`} />
+              <div className="p-5">
+                {/* Header row */}
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${meta.bgClass}`}>
+                      <TypeIcon size={20} className={meta.textClass} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-base leading-tight">
+                        {selectedPost.title || meta.label}
+                      </p>
+                      <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full mt-0.5 ${meta.pillClass}`}>
+                        {meta.label}
+                      </span>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowPostModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 shrink-0">
+                    <FiX size={20} className="text-gray-500" />
+                  </button>
+                </div>
+                {/* Body content */}
+                {bodyText && (
+                  <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">{renderTextWithLinks(bodyText)}</p>
                 )}
+                {/* Media */}
+                {(selectedPost.image || selectedPost.video) && (
+                  <div className="mt-4">
+                    {selectedPost.image && (
+                      <img src={selectedPost.image} alt="Post" className="max-h-80 rounded-xl border border-gray-100 w-full object-cover" />
+                    )}
+                    {selectedPost.video && (
+                      <video src={selectedPost.video} controls className="w-full max-h-80 rounded-xl border border-gray-100" />
+                    )}
+                  </div>
+                )}
+                {/* Tags */}
+                {selectedPost.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-4">
+                    {selectedPost.tags.map((tag) => (
+                      <span key={tag} className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">#{tag}</span>
+                    ))}
+                  </div>
+                )}
+                {/* Project link */}
+                {selectedPost.projectLink && (
+                  <a
+                    href={selectedPost.projectLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    <FiLink size={14} /> {selectedPost.projectLink}
+                  </a>
+                )}
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <p className="text-sm font-semibold text-gray-800 mb-2">Comments</p>
+                  {postComments.length === 0 ? (
+                    <p className="text-sm text-gray-500 mb-3">No comments yet. Start the conversation.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1 mb-3">
+                      {postComments.map((comment) => (
+                        <div key={comment.id} className="bg-gray-50 rounded-lg px-3 py-2">
+                          <p className="text-sm text-gray-800 break-words">{comment.text}</p>
+                          <p className="text-[11px] text-gray-500 mt-1">{formatDateTime(comment.createdAt)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={commentInputRef}
+                      type="text"
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddComment(selectedPost.id)
+                        }
+                      }}
+                      placeholder="Write a comment..."
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <Button
+                      variant="primary"
+                      onClick={() => handleAddComment(selectedPost.id)}
+                      disabled={!newCommentText.trim() || isSubmittingComment}
+                      className="px-3 py-2"
+                    >
+                      {isSubmittingComment ? 'Posting...' : 'Comment'}
+                    </Button>
+                  </div>
+                </div>
+                {/* Footer */}
+                <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() => handleToggleLike(selectedPost.id)}
+                    disabled={isLikingPost}
+                    className={`text-sm flex items-center gap-1.5 px-2.5 py-1.5 rounded-md transition ${likedPostIds[selectedPost.id] ? 'text-rose-600 bg-rose-50' : 'text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    <FiHeart size={14} className={likedPostIds[selectedPost.id] ? 'text-rose-500' : 'text-rose-400'} /> {selectedPost.likesCount || 0} Likes
+                  </button>
+                  <button
+                    onClick={() => commentInputRef.current?.focus()}
+                    className="text-sm text-gray-500 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md hover:bg-gray-100 transition"
+                  >
+                    <FiMessageSquare size={14} className="text-indigo-400" /> {selectedPost.commentsCount || 0} Comments
+                  </button>
+                  <span className="ml-auto text-xs text-gray-400">{formatDateTime(selectedPost.createdAt)}</span>
+                  {isOwnProfile && (
+                    <button
+                      onClick={() => handleDeletePost(selectedPost.id)}
+                      disabled={isDeletingPost}
+                      className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700 font-medium ml-2"
+                    >
+                      <FiTrash2 size={14} /> {isDeletingPost ? 'Deleting…' : 'Delete'}
+                    </button>
+                  )}
+                </div>
               </div>
-            )}
-            <div className="text-xs text-gray-500 mt-3">
-              {formatDateTime(selectedPost.createdAt)} • Likes {selectedPost.likesCount || 0} • Comments {selectedPost.commentsCount || 0}
-            </div>
-          </Card>
-        </div>
-      )}
+            </Card>
+          </div>
+        )
+      })()}
 
       {showFollowersModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">

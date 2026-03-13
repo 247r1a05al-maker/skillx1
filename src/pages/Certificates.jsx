@@ -53,7 +53,7 @@ const Certificates = () => {
   const [earnedCertificates, setEarnedCertificates] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState('all')
-  const [filterDepartment, setFilterDepartment] = useState('cse')
+  const [filterDepartment, setFilterDepartment] = useState('all')
   const [expandedRatingId, setExpandedRatingId] = useState(null)
   const [searchSuggestions, setSearchSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -282,13 +282,18 @@ const Certificates = () => {
     { id: 136, name: 'Ansible Automation Specialist', department: 'it', type: 'paid', rating: 4, skills: ['Ansible', 'Automation', 'DevOps'], link: 'https://www.ansible.com', note: 'IT automation platform expertise' },
   ]
 
-  // Department definitions
+  // Department definitions with dynamic counts (keeps UI counts consistent with data)
+  const departmentCounts = certificateResources.reduce((acc, resource) => {
+    acc[resource.department] = (acc[resource.department] || 0) + 1
+    return acc
+  }, {})
+
   const departments = [
-    { id: 'all', label: 'All', name: 'All Departments', count: 136 },
-    { id: 'cse', label: 'CSE', name: 'Computer Science & Engineering', count: 70 },
-    { id: 'it', label: 'IT', name: 'Information Technology', count: 40 },
-    { id: 'design', label: 'Design', name: 'UI/UX & Design', count: 8 },
-    { id: 'business', label: 'Business', name: 'Business & Management', count: 5 },
+    { id: 'all', label: 'All', name: 'All Departments', count: certificateResources.length },
+    { id: 'cse', label: 'CSE', name: 'Computer Science & Engineering', count: departmentCounts.cse || 0 },
+    { id: 'it', label: 'IT', name: 'Information Technology', count: departmentCounts.it || 0 },
+    { id: 'design', label: 'Design', name: 'UI/UX & Design', count: departmentCounts.design || 0 },
+    { id: 'business', label: 'Business', name: 'Business & Management', count: departmentCounts.business || 0 },
   ]
 
   // Get all unique skills and certificate names
@@ -353,7 +358,9 @@ const Certificates = () => {
     const matchesSearch =
       term.length === 0 ||
       resource.name.toLowerCase().includes(term) ||
-      resource.skills.some((skill) => skill.toLowerCase().includes(term))
+      resource.skills.some((skill) => skill.toLowerCase().includes(term)) ||
+      resource.note.toLowerCase().includes(term) ||
+      resource.department.toLowerCase().includes(term)
     return matchesDepartment && matchesType && matchesSearch
   }).sort((a, b) => {
     if (sortBy === 'rating') {
@@ -565,14 +572,14 @@ const Certificates = () => {
 
           {/* Quick Filters */}
           <div className="space-y-2">
-            <p className="text-xs font-semibold theme-text-secondary">Quick Filters:</p>
+            <p className="text-xs font-bold text-gray-700">Quick Filters:</p>
             <div className="flex flex-wrap gap-2">
               {quickFilters.map((filter, idx) => (
                 <motion.button
                   key={idx}
                   whileHover={{ scale: 1.05 }}
                   onClick={() => applyQuickFilter(filter)}
-                  className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors"
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-semibold hover:bg-indigo-700 shadow-sm transition-colors border border-indigo-500"
                 >
                   {filter.label}
                 </motion.button>

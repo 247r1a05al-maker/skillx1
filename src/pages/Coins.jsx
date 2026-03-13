@@ -125,18 +125,21 @@ const Coins = () => {
 
       {/* Balance Card */}
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full">
-        <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-8">
+        <div
+          className="rounded-xl p-8 text-white border border-indigo-400/30 shadow-md"
+          style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #2563eb 100%)' }}
+        >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-indigo-100 text-lg mb-2">Current Balance</p>
-              <p className="text-5xl font-bold mb-2">{balance.toLocaleString()}</p>
-              <p className="text-indigo-100">SkillEx Credits</p>
+              <p className="text-white text-lg mb-2 font-semibold">Current Balance</p>
+              <p className="text-5xl font-bold mb-2 text-white">{balance.toLocaleString()}</p>
+              <p className="text-white/90 font-medium">SkillEx Credits</p>
             </div>
             <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
               <SCoinIcon size={40} />
             </div>
           </div>
-        </Card>
+        </div>
       </motion.div>
 
       {/* Stats */}
@@ -248,40 +251,6 @@ const Coins = () => {
         )}
       </Card>
 
-      {/* How to Earn Info */}
-      <Card>
-        <h3 className="text-lg font-bold text-gray-900 mb-4">How to Earn Coins</h3>
-        <div className="space-y-3">
-          <div className="flex gap-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-gray-900">Complete a skill exchange session</p>
-              <p className="text-sm text-gray-600">Earn 100 coins per session</p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-gray-900">Get community engagement</p>
-              <p className="text-sm text-gray-600">Likes and comments on your posts earn you coins</p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-gray-900">Earn certificates</p>
-              <p className="text-sm text-gray-600">Complete courses to earn 200 coins</p>
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-            <div>
-              <p className="font-semibold text-gray-900">Join group activities</p>
-              <p className="text-sm text-gray-600">Participate in group sessions for bonus coins</p>
-            </div>
-          </div>
-        </div>
-      </Card>
     </div>
   )
 }

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiHeart, FiMessageCircle, FiSend, FiTrash2, FiX, FiImage } from 'react-icons/fi'
+import { FiHeart, FiMessageCircle, FiSend, FiTrash2, FiX, FiImage, FiZap, FiTrendingUp } from 'react-icons/fi'
 import { Card, Button } from '../components/UI'
 import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
@@ -9,6 +9,7 @@ const Community = () => {
   const { user: authUser } = useAuthStore()
   const [posts, setPosts] = useState([])
   const [users, setUsers] = useState({})
+  const [userStats, setUserStats] = useState({}) // {userId: {followers, postsCount, engagement}}
   const [newPostContent, setNewPostContent] = useState('')
   const [showPostForm, setShowPostForm] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -28,10 +29,24 @@ const Community = () => {
 
     const unsubscribeUsers = firebaseRealtime.subscribeToUsers((loadedUsers) => {
       const usersMap = {}
+      const statsMap = {}
+      
       loadedUsers.forEach(user => {
         usersMap[user.id] = user
+        
+        // Calculate user stats
+        const userPosts = loadedUsers.filter(u => u.id === user.id)
+        statsMap[user.id] = {
+          followers: user.followersCount || 0,
+          postsCount: user.postsCount || 0,
+          engagement: (user.likesReceived || 0) + (user.commentsReceived || 0),
+          isOnline: user.isOnline || false,
+          lastActive: user.lastActiveAt || user.statusLastChanged,
+        }
       })
+      
       setUsers(usersMap)
+      setUserStats(statsMap)
     })
 
     return () => unsubscribeUsers()
@@ -104,6 +119,7 @@ const Community = () => {
       const postData = {
         authorId: authUser.uid || authUser.id,
         content: newPostContent.trim(),
+        visibility: 'community',
         tags: [],
       }
 
@@ -137,13 +153,41 @@ const Community = () => {
     }
   }
 
-  // Helper function to validate URL
-  const isValidUrl = (string) => {
-    try {
-      new URL(string)
-      return true
-    } catch (_) {
-      return false
+  // Get engagement level and color
+  const getEngagementLevel = (authorId) => {
+    const stats = userStats[authorId]
+    if (!stats) return { level: 'New', color: 'gray', icon: '✨' }
+    
+    const totalEngagement = (stats.followers || 0) + (stats.postsCount || 0) + (stats.engagement || 0)
+    
+    if (totalEngagement > 100) return { level: 'Elite', color: 'purple', icon: '👑' }
+    if (totalEngagement > 50) return { level: 'Active', color: 'blue', icon: '🔥' }
+    if (totalEngagement > 20) return { level: 'Rising', color: 'green', icon: '📈' }
+    if (totalEngagement > 0) return { level: 'Member', color: 'indigo', icon: '⭐' }
+    return { level: 'New', color: 'gray', icon: '✨' }
+  }
+
+  // Format timestamp
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'Just now'
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diff = Math.floor((now - date) / 1000)
+
+    if (diff < 60) return 'Just now'
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`
+    return date.toLocaleDateString()
+  }
+
+  const getAuthorData = (authorId) => {
+    const user = users[authorId]
+    if (!user) return { name: 'Unknown User', avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}` }
+    return {
+      name: user.name || user.displayName || 'User',
+      avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}`,
+      isOnline: user.isOnline || false,
     }
   }
 
@@ -254,30 +298,6 @@ const Community = () => {
     return () => unsubscribe()
   }, [selectedPost?.id])
 
-  // Format timestamp
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return 'Just now'
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diff = Math.floor((now - date) / 1000)
-
-    if (diff < 60) return 'Just now'
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`
-    return date.toLocaleDateString()
-  }
-
-  const getAuthorData = (authorId) => {
-    const user = users[authorId]
-    if (!user) return { name: 'Unknown User', avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}` }
-    return {
-      name: user.name || user.displayName || 'User',
-      avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}`
-    }
-  }
-
-
   // Suggested topics to inspire posts
   const suggestedTopics = [
     { emoji: '💡', text: 'Share a learning tip', color: 'bg-yellow-100 text-yellow-800' },
@@ -287,14 +307,12 @@ const Community = () => {
     { emoji: '🏆', text: 'Celebrate a win', color: 'bg-orange-100 text-orange-800' },
   ]
 
-  const trendingHashtags = ['#WebDev', '#Python', '#DataScience', '#Design', '#AI', '#JavaScript']
-
   return (
     <div className="min-h-screen bg-gray-50 pt-20 pb-12">
       <div className="max-w-6xl mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-3 space-y-6">
             {/* Header */}
             <motion.div
               initial={{ opacity: 0, y: -20 }}
@@ -461,24 +479,73 @@ const Community = () => {
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
               >
-                <Card>
-                  {/* Post Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={author.avatar}
-                        alt={author.name}
-                        className="w-12 h-12 rounded-full"
-                      />
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{author.name}</h3>
-                        <p className="text-sm text-gray-500">{formatTimestamp(post.createdAt)}</p>
+                <Card className="border-l-4 border-l-indigo-500 hover:shadow-lg transition-shadow">
+                  {/* Post Header with Activity Indicators */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      {/* Avatar with Online Status */}
+                      <div className="relative">
+                        <img
+                          src={author.avatar}
+                          alt={author.name}
+                          className="w-12 h-12 rounded-full ring-2 ring-indigo-100"
+                        />
+                        {author.isOnline && (
+                          <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                        )}
+                      </div>
+                      
+                      {/* Author Info and Stats */}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-gray-900">{author.name}</h3>
+                          {(() => {
+                            const engagement = getEngagementLevel(post.authorId)
+                            const colorMap = {
+                              purple: 'bg-purple-100 text-purple-700',
+                              blue: 'bg-blue-100 text-blue-700',
+                              green: 'bg-green-100 text-green-700',
+                              indigo: 'bg-indigo-100 text-indigo-700',
+                              gray: 'bg-gray-100 text-gray-700',
+                            }
+                            return (
+                              <span className={`text-xs px-2 py-1 rounded-full font-semibold ${colorMap[engagement.color]} flex items-center gap-1`}>
+                                {engagement.icon} {engagement.level}
+                              </span>
+                            )
+                          })()}
+                          {author.isOnline && (
+                            <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium flex items-center gap-1">
+                              🟢 Online
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* User Stats Row */}
+                        <div className="flex items-center gap-4 text-xs text-gray-500 mb-1">
+                          {userStats[post.authorId] && (
+                            <>
+                              <span className="flex items-center gap-1">
+                                <FiTrendingUp size={14} />
+                                {userStats[post.authorId].followers || 0} followers
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <FiZap size={14} />
+                                {userStats[post.authorId].engagement || 0} engagement
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        
+                        {/* Timestamp */}
+                        <p className="text-xs text-gray-400">{formatTimestamp(post.createdAt)}</p>
                       </div>
                     </div>
+                    
                     {isOwnPost && (
                       <button
                         onClick={() => handleDeletePost(post.id)}
-                        className="text-red-500 hover:text-red-700 transition"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition"
                         title="Delete post"
                       >
                         <FiTrash2 size={18} />
@@ -487,7 +554,9 @@ const Community = () => {
                   </div>
 
                   {/* Post Content */}
-                  <p className="text-gray-800 mb-4 whitespace-pre-wrap">{post.content}</p>
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">{post.content}</p>
+                  </div>
 
                   {/* Media Display */}
                   {post.image && (
@@ -507,30 +576,35 @@ const Community = () => {
                   )}
 
                   {/* Post Actions */}
-                  <div className="flex items-center gap-6 pt-4 border-t border-gray-200">
-                    <button
+                  <div className="flex items-center gap-4 pt-4 border-t border-gray-200">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={(e) => handleToggleLike(post.id, e)}
                       disabled={isLoadingLikes[post.id]}
-                      className={`flex items-center gap-2 transition ${
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
                         liked 
-                          ? 'text-red-500' 
-                          : 'text-gray-500 hover:text-red-500'
-                      } ${isLoadingLikes[post.id] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          ? 'bg-red-50 text-red-600' 
+                          : 'bg-gray-50 text-gray-600 hover:bg-red-50 hover:text-red-600'
+                      } ${isLoadingLikes[post.id] ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                       <FiHeart 
-                        size={20} 
+                        size={18} 
                         fill={liked ? 'currentColor' : 'none'} 
                         className={isLoadingLikes[post.id] ? 'animate-pulse' : ''}
                       />
-                      <span className="font-medium">{likesCount}</span>
-                    </button>
-                    <button
+                      <span className="font-semibold text-sm">{likesCount}</span>
+                    </motion.button>
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => setSelectedPost(post)}
-                      className="flex items-center gap-2 text-gray-500 hover:text-indigo-600 transition"
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition cursor-pointer"
                     >
-                      <FiMessageCircle size={20} />
-                      <span className="font-medium">{commentsCount}</span>
-                    </button>
+                      <FiMessageCircle size={18} />
+                      <span className="font-semibold text-sm">{commentsCount}</span>
+                    </motion.button>
                   </div>
                 </Card>
               </motion.div>
@@ -609,115 +683,6 @@ const Community = () => {
         )}
           </div>
 
-          {/* Sidebar */}
-          <div className="hidden lg:block space-y-6">
-            {/* Trending Hashtags */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <Card>
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  🔥 Trending Topics
-                </h3>
-                <div className="space-y-2">
-                  {trendingHashtags.map((tag, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setShowPostForm(true)
-                        setNewPostContent(`${tag} `)
-                      }}
-                      className="block w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 text-indigo-600 font-medium transition"
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </Card>
-            </motion.div>
-
-            {/* Community Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <Card>
-                <h3 className="text-lg font-bold text-gray-900 mb-4">📊 Community Stats</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Total Posts</span>
-                    <span className="font-bold text-indigo-600">{posts.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Active Members</span>
-                    <span className="font-bold text-green-600">{Object.keys(users).length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Total Engagement</span>
-                    <span className="font-bold text-purple-600">
-                      {posts.reduce((sum, p) => sum + (p.likesCount || 0) + (p.commentsCount || 0), 0)}
-                    </span>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-
-            {/* Engagement Tips */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <Card>
-                <h3 className="text-lg font-bold text-gray-900 mb-4">💡 Engagement Tips</h3>
-                <ul className="space-y-3 text-sm text-gray-600">
-                  <li className="flex gap-2">
-                    <span className="text-green-500">✓</span>
-                    <span>Share your learning journey</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-green-500">✓</span>
-                    <span>Ask thoughtful questions</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-green-500">✓</span>
-                    <span>Comment on others' posts</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-green-500">✓</span>
-                    <span>Use relevant hashtags</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="text-green-500">✓</span>
-                    <span>Share helpful resources</span>
-                  </li>
-                </ul>
-              </Card>
-            </motion.div>
-
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-            >
-              <Card className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-                <h3 className="text-lg font-bold mb-3">✨ Get Noticed</h3>
-                <p className="text-sm text-indigo-100 mb-4">
-                  Quality posts get more engagement. Share valuable insights!
-                </p>
-                <Button
-                  onClick={() => setShowPostForm(true)}
-                  className="w-full bg-white text-indigo-600 hover:bg-indigo-50"
-                >
-                  Create Post
-                </Button>
-              </Card>
-            </motion.div>
-          </div>
         </div>
       </div>
 

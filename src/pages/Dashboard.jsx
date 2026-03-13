@@ -188,8 +188,8 @@ const Dashboard = () => {
       {/* Welcome Header with Streak */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome back! 👋</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-2">Here's your learning progress overview</p>
+          <h1 className="text-3xl font-bold" style={{ color: '#111827' }}>Welcome back, {authUser?.name || authUser?.displayName || 'there'}! 👋</h1>
+          <p className="mt-2" style={{ color: '#6B7280' }}>Here's your learning progress overview</p>
         </div>
         <div className="flex items-center gap-4">
           {/* Streak Fire Icon - Click to see details */}
