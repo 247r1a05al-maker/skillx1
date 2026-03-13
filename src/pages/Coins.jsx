@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { FiTrendingUp, FiDownload, FiCalendar, FiAlertCircle } from 'react-icons/fi'
-import { Card, StatCard, Button, Badge } from '../components/UI'
+import { FiTrendingUp, FiDownload, FiCalendar, FiAlertCircle, FiTrash2 } from 'react-icons/fi'
+import { Card, StatCard, Badge } from '../components/UI'
 import SCoinIcon from '../components/SCoinIcon'
 import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
@@ -9,7 +9,7 @@ import { useToast } from '../hooks'
 
 const Coins = () => {
   const { user: authUser } = useAuthStore()
-  const { error: showError } = useToast()
+  const { error: showError, success: showSuccess } = useToast()
   // INSTANT: Use cached coins from authUser (no 0 flash!)
   const [balance, setBalance] = useState(authUser?.coins || 0)
   const [history, setHistory] = useState([])
@@ -21,6 +21,47 @@ const Coins = () => {
     totalSpent: 0,
     thisMonth: 0
   })
+
+  const MIN_DELETE_DAYS = 7
+
+  const normalizeTimestamp = (value) => {
+    if (!value) return null
+    if (typeof value === 'number') return value
+    if (typeof value === 'string') {
+      const fromDate = new Date(value).getTime()
+      if (!Number.isNaN(fromDate)) return fromDate
+      const fromNumber = Number(value)
+      return Number.isFinite(fromNumber) ? fromNumber : null
+    }
+    if (typeof value === 'object' && typeof value.seconds === 'number') {
+      return value.seconds * 1000
+    }
+    return null
+  }
+
+  const recalculateStats = (transactions) => {
+    const now = new Date()
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+
+    let totalEarned = 0
+    let totalSpent = 0
+    let thisMonth = 0
+
+    transactions.forEach(tx => {
+      const amount = Math.abs(tx.amount || 0)
+      const txTs = normalizeTimestamp(tx.timestamp)
+      if (tx.type === 'earned' || tx.amount > 0) {
+        totalEarned += amount
+        if (txTs && txTs >= thisMonthStart) {
+          thisMonth += amount
+        }
+      } else if (tx.type === 'spent' || tx.amount < 0) {
+        totalSpent += amount
+      }
+    })
+
+    setStats({ totalEarned, totalSpent, thisMonth })
+  }
 
   // Load coin data
   useEffect(() => {
@@ -44,27 +85,7 @@ const Coins = () => {
         const transactions = await firebaseRealtime.getCoinTransactions(authUser.id, 50)
         setHistory(transactions)
 
-        // Calculate stats
-        const now = new Date()
-        const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-        
-        let totalEarned = 0
-        let totalSpent = 0
-        let thisMonth = 0
-
-        transactions.forEach(tx => {
-          const amount = Math.abs(tx.amount || 0)
-          if (tx.type === 'earned' || tx.amount > 0) {
-            totalEarned += amount
-            if (tx.timestamp >= thisMonthStart) {
-              thisMonth += amount
-            }
-          } else if (tx.type === 'spent' || tx.amount < 0) {
-            totalSpent += amount
-          }
-        })
-
-        setStats({ totalEarned, totalSpent, thisMonth })
+        recalculateStats(transactions)
       } catch (error) {
         console.error('Error loading coin data:', error)
         setLoadError(`Failed to load coin data: ${error.message || 'Unknown error'}`)
@@ -98,10 +119,40 @@ const Coins = () => {
     }
   })
 
+  const canDeleteTransaction = (timestamp) => {
+    const txTs = normalizeTimestamp(timestamp)
+    if (!txTs) return false
+    const ageMs = Date.now() - txTs
+    return ageMs >= MIN_DELETE_DAYS * 24 * 60 * 60 * 1000
+  }
+
+  const handleDeleteTransaction = async (transaction) => {
+    if (!authUser?.id || !transaction?.id) return
+    if (!canDeleteTransaction(transaction.timestamp)) {
+      showError(`You can delete only transactions older than ${MIN_DELETE_DAYS} days`)
+      return
+    }
+
+    const ok = window.confirm('Delete this transaction history item?')
+    if (!ok) return
+
+    const result = await firebaseRealtime.deleteCoinTransaction(authUser.id, transaction.id, MIN_DELETE_DAYS)
+    if (!result.success) {
+      showError(result.error || 'Failed to delete transaction')
+      return
+    }
+
+    const nextHistory = history.filter((tx) => tx.id !== transaction.id)
+    setHistory(nextHistory)
+    recalculateStats(nextHistory)
+    showSuccess('Transaction deleted from history')
+  }
+
   // Format date
   const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A'
-    const date = new Date(timestamp)
+    const normalized = normalizeTimestamp(timestamp)
+    if (!normalized) return 'N/A'
+    const date = new Date(normalized)
     return date.toLocaleDateString('en-US', { 
       year: 'numeric', 
       month: 'short', 
@@ -215,6 +266,7 @@ const Coins = () => {
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">Action</th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-700">Amount</th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-700">Balance</th>
+                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Manage</th>
                 </tr>
               </thead>
               <tbody>
@@ -242,6 +294,24 @@ const Coins = () => {
                     </td>
                     <td className="py-3 px-4 text-right font-semibold text-indigo-600">
                       {(transaction.balanceAfter || 0).toLocaleString()}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {canDeleteTransaction(transaction.timestamp) ? (
+                        <button
+                          onClick={() => handleDeleteTransaction(transaction)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition"
+                          title="Delete this history item"
+                        >
+                          <FiTrash2 size={13} /> Delete
+                        </button>
+                      ) : (
+                        <span
+                          className="text-xs text-gray-400"
+                          title={`Only transactions older than ${MIN_DELETE_DAYS} days can be deleted`}
+                        >
+                          Locked
+                        </span>
+                      )}
                     </td>
                   </motion.tr>
                 ))}

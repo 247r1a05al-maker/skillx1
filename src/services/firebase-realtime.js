@@ -2984,6 +2984,58 @@ class FirebaseRealtimeService {
     }
   }
 
+  // Delete coin transaction history item only if it is old enough
+  async deleteCoinTransaction(userId, transactionId, minAgeDays = 7) {
+    if (!userId || !transactionId) {
+      return { success: false, error: 'Invalid user or transaction id' }
+    }
+
+    try {
+      const txRef = ref(realtimeDb, `coinTransactions/${userId}/${transactionId}`)
+      const txSnapshot = await get(txRef)
+
+      if (!txSnapshot.exists()) {
+        return { success: false, error: 'Transaction not found' }
+      }
+
+      const tx = txSnapshot.val() || {}
+      const normalizeTimestamp = (value) => {
+        if (!value) return NaN
+        if (typeof value === 'number') return value
+        if (typeof value === 'string') {
+          const asDate = new Date(value).getTime()
+          if (!Number.isNaN(asDate)) return asDate
+          const asNumber = Number(value)
+          return Number.isFinite(asNumber) ? asNumber : NaN
+        }
+        if (typeof value === 'object' && typeof value.seconds === 'number') {
+          return value.seconds * 1000
+        }
+        return NaN
+      }
+
+      const txTime = normalizeTimestamp(tx.timestamp || tx.createdAt)
+      if (Number.isNaN(txTime)) {
+        return { success: false, error: 'Transaction has invalid timestamp' }
+      }
+
+      const minAgeMs = Math.max(1, minAgeDays) * 24 * 60 * 60 * 1000
+      const ageMs = Date.now() - txTime
+      if (ageMs < minAgeMs) {
+        return {
+          success: false,
+          error: `Transaction can be deleted only after ${minAgeDays} days`,
+        }
+      }
+
+      await remove(txRef)
+      return { success: true }
+    } catch (error) {
+      console.error('Error deleting coin transaction:', error)
+      return { success: false, error: error.message }
+    }
+  }
+
   // Certificate Management
   async issueCertificate(certificateData) {
     try {
