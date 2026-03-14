@@ -191,30 +191,55 @@ const Navbar = () => {
   const getSupportReply = (query) => {
     const q = normalizeString(query)
     if (!q) return 'Please type your question.'
-    if (q.includes('useful') || q.includes('what is this') || q.includes('website')) {
+
+    const hasAny = (terms) => terms.some((term) => q.includes(term))
+    const asksAboutPlatform =
+      hasAny(['what is', 'about', 'useful', 'website', 'platform', 'skill exchange', 'skillx', 'purpose'])
+
+    if (hasAny(['hi', 'hello', 'hey'])) {
+      return 'Hi! I can help with Skill Exchange basics like Profile, Posts, Community, Explore, Coins, Badges, Groups, and Inbox.'
+    }
+
+    if (asksAboutPlatform) {
       return 'Skill Exchange helps users teach and learn skills, create posts, join groups, and connect with community members.'
     }
-    if (q.includes('badge') || q.includes('batch')) {
+
+    if (hasAny(['badge', 'badges', 'batch', 'batches'])) {
       return 'Badges are earned by activity like posting, joining groups, following users, and regular engagement.'
     }
-    if (q.includes('coin')) {
+
+    if (hasAny(['coin', 'coins'])) {
       return 'Coins are earned from platform activity and can be tracked on the Coins page.'
     }
-    if (q.includes('post') && q.includes('community')) {
+
+    if (hasAny(['post']) && hasAny(['community'])) {
       return 'Create a post from Profile and choose Community in visibility targets to show it in Community feed.'
     }
-    if (q.includes('delete') && q.includes('community')) {
+
+    if (hasAny(['delete', 'remove']) && hasAny(['community'])) {
       return 'Deleting from Community removes that post from Community feed only. Full delete from all places is available in Profile.'
     }
-    if (q.includes('explore')) {
+
+    if (hasAny(['explore', 'discover'])) {
       return 'Explore helps you discover users and skills, then connect or follow based on your interests.'
     }
-    if (q.includes('group')) {
+
+    if (hasAny(['group', 'groups'])) {
       return 'Use Groups to join communities, chat with members, and collaborate around shared skills.'
     }
-    if (q.includes('inbox') || q.includes('message') || q.includes('chat')) {
+
+    if (hasAny(['inbox', 'message', 'messages', 'chat'])) {
       return 'Use Inbox to send direct messages, images, GIFs, and files to other users.'
     }
+
+    if (hasAny(['profile'])) {
+      return 'In Profile, you can edit your details, create posts, choose visibility targets, and manage your content.'
+    }
+
+    if (hasAny(['thanks', 'thank you', 'ok'])) {
+      return 'You are welcome. Ask anything about Skill Exchange features and I will help quickly.'
+    }
+
     return 'I can help with Skill Exchange basics. Try asking about Profile, Posts, Community, Explore, Coins, Badges, Groups, or Inbox.'
   }
 
