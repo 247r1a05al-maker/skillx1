@@ -5,7 +5,10 @@ import {
   FiCheck,
   FiChevronLeft,
   FiChevronRight,
+  FiClock,
+  FiExternalLink,
   FiFileText,
+  FiHeart,
   FiMessageSquare,
   FiSearch,
   FiSliders,
@@ -335,6 +338,25 @@ const Explore = () => {
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
 
+  const formatRelativeTime = (value) => {
+    const timestamp = typeof value === 'number' ? value : new Date(value || 0).getTime()
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Recently posted'
+
+    const diffMs = Date.now() - timestamp
+    if (diffMs < 60 * 1000) return 'Just now'
+
+    const minutes = Math.floor(diffMs / (60 * 1000))
+    if (minutes < 60) return `${minutes}m ago`
+
+    const hours = Math.floor(diffMs / (60 * 60 * 1000))
+    if (hours < 24) return `${hours}h ago`
+
+    const days = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+    if (days < 7) return `${days}d ago`
+
+    return new Date(timestamp).toLocaleDateString()
+  }
+
   const renderModelCard = (user, cardData) => {
     const {
       isOnline,
@@ -348,54 +370,75 @@ const Explore = () => {
     const latestPostPreview = getPostPreview(latestPost)
 
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:border-blue-300 hover:shadow-md transition-all duration-300">
+      <div className="bg-white rounded-[28px] border border-slate-200 shadow-sm overflow-hidden hover:border-blue-300 hover:shadow-lg transition-all duration-300">
         <div className={`h-1.5 bg-gradient-to-r ${bannerClass}`} />
-        <div className="p-4 sm:p-5">
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className="relative shrink-0"><Avatar src={user.avatar} name={user.name} userId={user.id} size="md" /><span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-slate-400'}`} /></div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center flex-wrap gap-2"><h3 className="text-[18px] font-extrabold text-slate-900 truncate">{user.name || 'Member'}</h3>{isVerified ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200"><FiCheck size={12} /> Verified</span> : null}<span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border ${isOnline ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{isOnline ? 'Available' : 'Offline'}</span></div>
-                <p className="text-sm text-slate-700 mt-1 line-clamp-1">{getTagline(user)}</p>
-                <div className="mt-2 flex items-center flex-wrap gap-3 text-xs text-slate-600"><span><strong className="text-slate-900">{followers}</strong> followers</span><span><strong className="text-slate-900">{groups}</strong> groups</span></div>
-                <div className="mt-2.5">{renderSkillPills(skills, 4)}</div>
+        <div className="p-5 sm:p-6">
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="relative shrink-0">
+              <Avatar src={user.avatar} name={user.name} userId={user.id} size="md" />
+              <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-slate-400'}`} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-[20px] font-black tracking-tight text-slate-900 truncate">{user.name || 'Member'}</h3>
+                {isVerified ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200"><FiCheck size={12} /> Verified</span> : null}
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border ${isOnline ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{isOnline ? 'Available' : 'Offline'}</span>
+              </div>
+              <p className="text-sm text-slate-700 mt-1 line-clamp-1">{getTagline(user)}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                <span className="rounded-full bg-slate-50 border border-slate-200 px-3 py-1"><strong className="text-slate-900">{followers}</strong> followers</span>
+                <span className="rounded-full bg-slate-50 border border-slate-200 px-3 py-1"><strong className="text-slate-900">{groups}</strong> groups</span>
+              </div>
+              <div className="mt-3">{renderSkillPills(skills, 4)}</div>
+            </div>
+          </div>
 
-                <div className="mt-4 min-h-[132px] rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                      <FiFileText size={16} className="text-indigo-600" /> Latest post
-                    </div>
-                    {latestPost ? (
-                      <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 border border-slate-200">
-                        {getPostMeta(latestPost)}
-                      </span>
-                    ) : null}
+          <div className="mt-5 rounded-[24px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4 sm:p-5 min-h-[220px]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <FiFileText size={16} className="text-indigo-600" /> Featured update
+              </div>
+              {latestPost ? (
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className="rounded-full bg-white px-2.5 py-1 font-semibold text-slate-600 border border-slate-200">{getPostMeta(latestPost)}</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-semibold text-slate-500 border border-slate-200"><FiClock size={11} /> {formatRelativeTime(latestPost.createdAt)}</span>
+                </div>
+              ) : null}
+            </div>
+
+            {latestPost ? (
+              <div className="mt-4 space-y-3">
+                {latestPost.title ? (
+                  <p className="text-base font-bold text-slate-900 line-clamp-1">{latestPost.title}</p>
+                ) : null}
+
+                <p className="text-sm leading-7 text-slate-700 line-clamp-4">{latestPostPreview}</p>
+
+                {latestPost.image ? (
+                  <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white">
+                    <img src={latestPost.image} alt={latestPost.title || `${user.name || 'Member'} post`} className="h-40 w-full object-cover" />
                   </div>
+                ) : null}
 
-                  {latestPost ? (
-                    <div className="mt-3 space-y-2">
-                      {latestPost.title ? (
-                        <p className="text-sm font-bold text-slate-900 line-clamp-1">{latestPost.title}</p>
-                      ) : null}
-                      <p className="text-sm leading-6 text-slate-700 line-clamp-4">{latestPostPreview}</p>
-                      {latestPost.image ? (
-                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
-                          <img src={latestPost.image} alt={latestPost.title || `${user.name || 'Member'} post`} className="h-28 w-full object-cover" />
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="mt-3 flex h-[72px] items-center rounded-xl border border-dashed border-slate-200 bg-white px-3">
-                      <p className="text-sm text-slate-500">No posts yet. When this member shares an update, it will appear here.</p>
-                    </div>
-                  )}
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 border border-slate-200"><FiHeart size={12} className="text-rose-500" /> {latestPost.likesCount || 0} likes</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 border border-slate-200"><FiMessageSquare size={12} className="text-indigo-500" /> {latestPost.commentsCount || 0} comments</span>
+                  {latestPost.projectLink ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 border border-slate-200"><FiExternalLink size={12} className="text-emerald-600" /> Link attached</span>
+                  ) : null}
                 </div>
               </div>
-            </div>
-            <div className="flex flex-row lg:flex-col gap-2 lg:w-[170px] shrink-0 lg:pt-1">
-              <button type="button" className="flex-1 px-4 py-2.5 rounded-lg bg-blue-700 text-white hover:bg-blue-800 transition font-bold text-sm flex items-center justify-center gap-2" onClick={() => navigate(`/profile/${user.id}`)}><FiUser size={15} /> View Profile</button>
-              <button type="button" className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition font-bold text-sm flex items-center justify-center gap-2" onClick={() => handleMessage(user.id)}><FiMessageSquare size={15} /> Message</button>
-            </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-5">
+                <p className="text-sm font-semibold text-slate-700">No updates posted yet</p>
+                <p className="text-sm text-slate-500 mt-1">When this member shares projects, achievements, tutorials, or status updates, they will appear here in Explore.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button type="button" className="px-4 py-3 rounded-xl bg-blue-700 text-white hover:bg-blue-800 transition font-bold text-sm flex items-center justify-center gap-2" onClick={() => navigate(`/profile/${user.id}`)}><FiUser size={15} /> View Profile</button>
+            <button type="button" className="px-4 py-3 rounded-xl bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition font-bold text-sm flex items-center justify-center gap-2" onClick={() => handleMessage(user.id)}><FiMessageSquare size={15} /> Message</button>
           </div>
         </div>
       </div>
