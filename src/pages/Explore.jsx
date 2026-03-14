@@ -56,12 +56,12 @@ const uniqueList = (items) => {
 }
 
 const SKILL_CHIP_STYLES = [
-  'bg-green-500 text-white',
-  'bg-blue-500 text-white',
-  'bg-purple-500 text-white',
-  'bg-indigo-500 text-white',
-  'bg-orange-500 text-white',
-  'bg-teal-500 text-white',
+  'bg-slate-100 text-slate-700 border border-slate-200',
+  'bg-blue-50 text-blue-700 border border-blue-200',
+  'bg-indigo-50 text-indigo-700 border border-indigo-200',
+  'bg-cyan-50 text-cyan-700 border border-cyan-200',
+  'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  'bg-zinc-100 text-zinc-700 border border-zinc-200',
 ]
 
 const PROFILE_BANNER_STYLES = [
@@ -443,12 +443,12 @@ const Explore = () => {
           </div>
         </div>
       ) : visibleUsers.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="space-y-3">
           {visibleUsers.map((user, index) => {
             const isOnline = !!user.isOnline
             const followers = followersCounts[user.id] ?? 0
             const groups = groupsCounts[user.id] ?? 0
-            const skills = uniqueList(getUserSkills(user)).slice(0, 2)
+            const skills = uniqueList(getUserSkills(user)).slice(0, 4)
             const isVerified = !!(user?.verified || user?.isVerified)
             const bannerClass = PROFILE_BANNER_STYLES[hashToIndex(user.id || user.name, PROFILE_BANNER_STYLES.length)]
 
@@ -459,73 +459,73 @@ const Explore = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(index * 0.03, 0.25) }}
               >
-                <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
-                  <div className={`h-16 bg-gradient-to-r ${bannerClass}`} />
-                  <div className="px-5 pb-5 -mt-8">
-                    <div className="flex items-start justify-between">
-                      <div className="relative">
-                        <div className="rounded-full ring-4 ring-white p-0.5 bg-white shadow-md">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:border-blue-300 hover:shadow-md transition-all duration-300">
+                  <div className={`h-1.5 bg-gradient-to-r ${bannerClass}`} />
+                  <div className="p-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div className="relative shrink-0">
                           <Avatar src={user.avatar} name={user.name} userId={user.id} size="md" />
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                              isOnline ? 'bg-green-500' : 'bg-slate-400'
+                            }`}
+                            aria-label={isOnline ? 'Online' : 'Offline'}
+                          />
                         </div>
-                        <span
-                          className={`absolute -bottom-0.5 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                            isOnline ? 'bg-green-500' : 'bg-gray-400'
-                          }`}
-                          aria-label={isOnline ? 'Online' : 'Offline'}
-                        />
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center flex-wrap gap-2">
+                            <h3 className="text-[17px] font-extrabold text-slate-900 truncate">{user.name || 'Member'}</h3>
+                            {isVerified ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200" aria-label="Verified">
+                                <FiCheck size={12} /> Verified
+                              </span>
+                            ) : null}
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold border ${isOnline ? 'bg-green-50 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                              {isOnline ? 'Available' : 'Away'}
+                            </span>
+                          </div>
+
+                          <p className="text-sm text-slate-700 mt-1 line-clamp-1">{getTagline(user)}</p>
+
+                          <div className="mt-2 flex items-center flex-wrap gap-3 text-xs text-slate-600">
+                            <span><strong className="text-slate-900">{followers}</strong> followers</span>
+                            <span><strong className="text-slate-900">{groups}</strong> groups</span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5 mt-2.5">
+                            {(skills || []).map((skill) => {
+                              const cls = SKILL_CHIP_STYLES[hashToIndex(skill, SKILL_CHIP_STYLES.length)]
+                              return (
+                                <span key={skill} className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${cls}`}>
+                                  {skill}
+                                </span>
+                              )
+                            })}
+                            {skills.length === 0 ? (
+                              <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">No skills listed</span>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                        {isOnline ? 'Online' : 'Offline'}
-                      </span>
-                    </div>
 
-                    <div className="mt-2.5">
-                      <h3 className="text-lg font-bold text-gray-900 leading-tight line-clamp-1">{user.name || 'Member'}</h3>
-                      <p className="text-sm text-gray-600 mt-0.5 line-clamp-1">{getTagline(user)}</p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 mt-4 min-h-[28px]">
-                      {(skills || []).map((skill) => {
-                        const cls = SKILL_CHIP_STYLES[hashToIndex(skill, SKILL_CHIP_STYLES.length)]
-                        return (
-                          <span key={skill} className={`px-3 py-1 rounded-full text-xs font-semibold ${cls}`}>
-                            {skill}
-                          </span>
-                        )
-                      })}
-                      {isVerified ? (
-                        <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-500 text-white flex items-center justify-center" aria-label="Verified">
-                          <FiCheck size={14} />
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mt-3 text-sm text-gray-600">
-                      <div className="rounded-xl bg-slate-50 px-3 py-2 border border-slate-100">
-                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Followers</p>
-                        <p className="font-bold text-gray-900">{followers}</p>
+                      <div className="flex flex-row lg:flex-col gap-2 lg:w-[170px] shrink-0">
+                        <button
+                          type="button"
+                          className="flex-1 px-4 py-2.5 rounded-lg bg-blue-700 text-white hover:bg-blue-800 transition font-bold text-sm flex items-center justify-center gap-2"
+                          onClick={() => navigate(`/profile/${user.id}`)}
+                        >
+                          <FiUser size={15} /> View Profile
+                        </button>
+                        <button
+                          type="button"
+                          className="flex-1 px-4 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition font-bold text-sm flex items-center justify-center gap-2"
+                          onClick={() => handleMessage(user.id)}
+                        >
+                          <FiMessageSquare size={15} /> Message
+                        </button>
                       </div>
-                      <div className="rounded-xl bg-slate-50 px-3 py-2 border border-slate-100">
-                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Groups</p>
-                        <p className="font-bold text-gray-900">{groups}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2.5 mt-4">
-                      <button
-                        type="button"
-                        className="flex-1 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition font-semibold flex items-center justify-center gap-2"
-                        onClick={() => navigate(`/profile/${user.id}`)}
-                      >
-                        <FiUser size={16} /> View Profile
-                      </button>
-                      <button
-                        type="button"
-                        className="flex-1 px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition font-semibold flex items-center justify-center gap-2"
-                        onClick={() => handleMessage(user.id)}
-                      >
-                        <FiMessageSquare size={16} /> Message
-                      </button>
                     </div>
                   </div>
                 </div>
