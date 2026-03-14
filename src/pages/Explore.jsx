@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
+  FiActivity,
   FiCheck,
   FiChevronLeft,
   FiChevronRight,
   FiMessageSquare,
   FiSearch,
+  FiSliders,
+  FiTrendingUp,
   FiUser,
   FiUsers,
 } from 'react-icons/fi'
@@ -59,6 +62,15 @@ const SKILL_CHIP_STYLES = [
   'bg-indigo-500 text-white',
   'bg-orange-500 text-white',
   'bg-teal-500 text-white',
+]
+
+const PROFILE_BANNER_STYLES = [
+  'from-indigo-500 via-blue-500 to-cyan-400',
+  'from-fuchsia-500 via-violet-500 to-indigo-500',
+  'from-emerald-500 via-teal-500 to-cyan-500',
+  'from-orange-500 via-rose-500 to-pink-500',
+  'from-slate-700 via-gray-700 to-zinc-700',
+  'from-sky-500 via-indigo-500 to-purple-600',
 ]
 
 const hashToIndex = (value, mod) => {
@@ -242,15 +254,98 @@ const Explore = () => {
     navigate(`/inbox?user=${targetUserId}`)
   }
 
+  const onlineMembersCount = useMemo(
+    () => (filteredAndSorted || []).filter((item) => !!item?.isOnline).length,
+    [filteredAndSorted]
+  )
+
+  const featuredMembers = useMemo(
+    () => filteredAndSorted.slice(0, 12),
+    [filteredAndSorted]
+  )
+
+  const topSkillTags = useMemo(() => {
+    const counts = new Map()
+    filteredAndSorted.forEach((item) => {
+      uniqueList(getUserSkills(item)).forEach((skill) => {
+        const key = (skill || '').toString().trim()
+        if (!key) return
+        counts.set(key, (counts.get(key) || 0) + 1)
+      })
+    })
+
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([name, count]) => ({ name, count }))
+  }, [filteredAndSorted])
+
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Explore &amp; Discover</h1>
-        <p className="text-gray-600 mt-2 text-base md:text-lg">Find mentors, learn new skills, and grow together</p>
-      </motion.div>
+      <motion.section
+        initial={{ opacity: 0, y: -14 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-3xl border border-indigo-200 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 text-white p-6 md:p-8"
+      >
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-14 left-6 w-52 h-52 rounded-full bg-cyan-300/20 blur-3xl" />
+        <div className="relative z-10">
+          <p className="text-cyan-200 font-semibold tracking-wide text-sm uppercase">Skill Network</p>
+          <h1 className="mt-2 text-3xl md:text-5xl font-black leading-tight">Discover Builders, Mentors, and Teammates</h1>
+          <p className="text-blue-100 mt-3 max-w-2xl">Find people by skills, activity, and shared interests. Start conversations directly from here.</p>
 
-      {/* Filter Bar (matches screenshot layout) */}
-      <div className="bg-white/70 border border-gray-200 rounded-2xl p-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+            <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3">
+              <p className="text-xs text-blue-100">Total Members</p>
+              <p className="text-2xl font-extrabold">{filteredAndSorted.length}</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3">
+              <p className="text-xs text-blue-100">Online Now</p>
+              <p className="text-2xl font-extrabold">{onlineMembersCount}</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3">
+              <p className="text-xs text-blue-100">Visible Cards</p>
+              <p className="text-2xl font-extrabold">{showingCount}</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3">
+              <p className="text-xs text-blue-100">Top Skills</p>
+              <p className="text-2xl font-extrabold">{topSkillTags.length}</p>
+            </div>
+          </div>
+        </div>
+      </motion.section>
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-3 text-gray-800 font-bold">
+          <FiActivity className="text-indigo-600" /> Featured Members
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {featuredMembers.length > 0 ? featuredMembers.map((member) => (
+            <button
+              key={`story-${member.id}`}
+              onClick={() => navigate(`/profile/${member.id}`)}
+              className="shrink-0 w-24 text-center group"
+            >
+              <div className="relative mx-auto w-16 h-16 rounded-full p-[2px] bg-gradient-to-br from-pink-500 via-orange-500 to-yellow-500">
+                <div className="w-full h-full rounded-full bg-white p-1">
+                  <Avatar src={member.avatar} name={member.name} userId={member.id} size="md" />
+                </div>
+                <span className={`absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-white ${member.isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
+              </div>
+              <p className="mt-1 text-xs font-semibold text-gray-700 truncate group-hover:text-indigo-700">{member.name || 'Member'}</p>
+            </button>
+          )) : (
+            <p className="text-sm text-gray-500">No featured members yet</p>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-extrabold text-gray-900 flex items-center gap-2"><FiSliders className="text-indigo-600" /> Discover Controls</h2>
+          <div className="text-sm text-gray-600">Showing <span className="font-bold text-gray-900">{showingCount}</span> of <span className="font-bold text-gray-900">{filteredAndSorted.length}</span></div>
+        </div>
+
         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
           <div className="relative w-full lg:max-w-md">
             <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -315,14 +410,24 @@ const Explore = () => {
             </select>
           </div>
         </div>
-      </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">
-          Showing <span className="font-bold text-gray-900">{showingCount}</span> of{' '}
-          <span className="font-bold text-gray-900">{filteredAndSorted.length}</span> members
-        </p>
-        <div className="flex items-center gap-2">
+        {topSkillTags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {topSkillTags.map((skill) => (
+              <button
+                key={`top-skill-${skill.name}`}
+                type="button"
+                onClick={() => setSelectedSkill(skill.name)}
+                className="px-3 py-1.5 rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100 transition"
+                title={`Used by ${skill.count} members`}
+              >
+                #{skill.name} · {skill.count}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 justify-end">
           <button
             type="button"
             onClick={() => setVisibleCount((c) => Math.max(PAGE_SIZE, c - PAGE_SIZE))}
@@ -342,7 +447,7 @@ const Explore = () => {
             <FiChevronRight />
           </button>
         </div>
-      </div>
+      </section>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
@@ -352,13 +457,14 @@ const Explore = () => {
           </div>
         </div>
       ) : visibleUsers.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           {visibleUsers.map((user, index) => {
             const isOnline = !!user.isOnline
             const followers = followersCounts[user.id] ?? 0
             const groups = groupsCounts[user.id] ?? 0
             const skills = uniqueList(getUserSkills(user)).slice(0, 2)
             const isVerified = !!(user?.verified || user?.isVerified)
+            const bannerClass = PROFILE_BANNER_STYLES[hashToIndex(user.id || user.name, PROFILE_BANNER_STYLES.length)]
 
             return (
               <motion.div
@@ -367,77 +473,74 @@ const Explore = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(index * 0.03, 0.25) }}
               >
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                  <div className="flex items-start justify-between">
-                    <div className="relative">
-                      <div className="rounded-full ring-4 ring-gray-100 p-1 bg-white">
-                        <Avatar src={user.avatar} name={user.name} userId={user.id} size="md" />
+                <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300">
+                  <div className={`h-20 bg-gradient-to-r ${bannerClass}`} />
+                  <div className="px-5 pb-5 -mt-10">
+                    <div className="flex items-start justify-between">
+                      <div className="relative">
+                        <div className="rounded-full ring-4 ring-white p-1 bg-white shadow">
+                          <Avatar src={user.avatar} name={user.name} userId={user.id} size="md" />
+                        </div>
+                        <span
+                          className={`absolute -bottom-0.5 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                            isOnline ? 'bg-green-500' : 'bg-gray-400'
+                          }`}
+                          aria-label={isOnline ? 'Online' : 'Offline'}
+                        />
                       </div>
-                      <span
-                        className={`absolute -bottom-0.5 left-1 w-3 h-3 rounded-full border-2 border-white ${
-                          isOnline ? 'bg-green-500' : 'bg-gray-400'
-                        }`}
-                        aria-label={isOnline ? 'Online' : 'Offline'}
-                      />
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {isOnline ? 'Online' : 'Offline'}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`} />
-                      <span>{isOnline ? 'Online' : 'Offline'}</span>
+
+                    <div className="mt-3">
+                      <h3 className="text-lg font-bold text-gray-900 leading-tight line-clamp-1">{user.name || 'Member'}</h3>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-1">{getTagline(user)}</p>
                     </div>
-                  </div>
 
-                  <div className="mt-4">
-                    <h3 className="text-lg font-bold text-gray-900 leading-tight line-clamp-1">
-                      {user.name || 'Member'}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-1">{getTagline(user)}</p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 mt-4 min-h-[28px]">
-                    {(skills || []).map((skill) => {
-                      const cls = SKILL_CHIP_STYLES[hashToIndex(skill, SKILL_CHIP_STYLES.length)]
-                      return (
-                        <span key={skill} className={`px-3 py-1 rounded-full text-xs font-semibold ${cls}`}>
-                          {skill}
+                    <div className="flex flex-wrap gap-2 mt-4 min-h-[28px]">
+                      {(skills || []).map((skill) => {
+                        const cls = SKILL_CHIP_STYLES[hashToIndex(skill, SKILL_CHIP_STYLES.length)]
+                        return (
+                          <span key={skill} className={`px-3 py-1 rounded-full text-xs font-semibold ${cls}`}>
+                            {skill}
+                          </span>
+                        )
+                      })}
+                      {isVerified ? (
+                        <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-500 text-white flex items-center justify-center" aria-label="Verified">
+                          <FiCheck size={14} />
                         </span>
-                      )
-                    })}
-                    {isVerified ? (
-                      <span className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-500 text-white flex items-center justify-center" aria-label="Verified">
-                        <FiCheck size={14} />
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm text-gray-600 mt-4">
-                    <div className="flex items-center gap-2">
-                      <FiUsers className="text-gray-400" />
-                      <span>
-                        Followers. <span className="font-semibold text-gray-800">{followers}</span>
-                      </span>
+                      ) : null}
                     </div>
-                    <div>
-                      <span>
-                        Groups: <span className="font-semibold text-gray-800">#{groups}</span>
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="flex gap-3 mt-5">
-                    <button
-                      type="button"
-                      className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition font-semibold flex items-center justify-center gap-2"
-                      onClick={() => navigate(`/profile/${user.id}`)}
-                    >
-                      <FiUser size={16} /> View Profile
-                    </button>
-                    <button
-                      type="button"
-                      className="flex-1 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition font-semibold flex items-center justify-center gap-2"
-                      onClick={() => handleMessage(user.id)}
-                    >
-                      <FiMessageSquare size={16} /> Message
-                    </button>
+                    <div className="grid grid-cols-2 gap-2 mt-4 text-sm text-gray-600">
+                      <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Followers</p>
+                        <p className="font-bold text-gray-900">{followers}</p>
+                      </div>
+                      <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-500">Groups</p>
+                        <p className="font-bold text-gray-900">{groups}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-5">
+                      <button
+                        type="button"
+                        className="flex-1 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition font-semibold flex items-center justify-center gap-2"
+                        onClick={() => navigate(`/profile/${user.id}`)}
+                      >
+                        <FiUser size={16} /> View Profile
+                      </button>
+                      <button
+                        type="button"
+                        className="flex-1 px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition font-semibold flex items-center justify-center gap-2"
+                        onClick={() => handleMessage(user.id)}
+                      >
+                        <FiMessageSquare size={16} /> Message
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -445,7 +548,7 @@ const Explore = () => {
           })}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-10 text-center">
+        <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-10 text-center">
           <p className="text-xl font-bold text-gray-900">No members found</p>
           <p className="text-gray-600 mt-2">Try adjusting your search or filters.</p>
           <div className="flex items-center justify-center gap-3 mt-6">
