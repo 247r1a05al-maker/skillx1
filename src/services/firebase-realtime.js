@@ -1927,32 +1927,61 @@ class FirebaseRealtimeService {
   }
 
   // Delete a post
-  async deletePost(postId, userId) {
+  // scope: 'all' (default) permanently deletes the post.
+  // scope: 'community' | 'profile' | 'explore' removes visibility only for that destination.
+  async deletePost(postId, userId, options = {}) {
     if (!postId || !userId) return { success: false, error: 'Post ID and User ID required' }
 
     try {
+      const scope = ['community', 'profile', 'explore'].includes(options?.scope)
+        ? options.scope
+        : 'all'
+
       // Check if user is the author
       const postRef = ref(realtimeDb, `posts/${postId}`)
       const postSnapshot = await get(postRef)
-      
+
       if (!postSnapshot.exists()) {
         return { success: false, error: 'Post not found' }
       }
 
-      if (postSnapshot.val().authorId !== userId) {
+      const existingPost = postSnapshot.val() || {}
+      if (existingPost.authorId !== userId) {
         return { success: false, error: 'Not authorized to delete this post' }
       }
 
-      // Delete post
+      // Scoped delete: remove only one destination target.
+      if (scope !== 'all') {
+        const currentTargets = Array.isArray(existingPost.visibilityTargets) && existingPost.visibilityTargets.length > 0
+          ? [...new Set(existingPost.visibilityTargets)]
+          : [existingPost.visibility || 'community']
+
+        const nextTargets = currentTargets.filter((target) => target !== scope)
+
+        // If at least one destination remains, keep post and update visibility.
+        if (nextTargets.length > 0) {
+          const normalizedVisibility = nextTargets.includes('community') ? 'community' : nextTargets[0]
+          await update(postRef, {
+            visibilityTargets: nextTargets,
+            visibility: normalizedVisibility,
+            updatedAt: serverTimestamp(),
+          })
+
+          return {
+            success: true,
+            deleted: false,
+            removedScope: scope,
+            visibilityTargets: nextTargets,
+          }
+        }
+      }
+
+      // Full delete (default path, or when last target was removed).
       await remove(postRef)
-      
-      // Delete all likes
       await remove(ref(realtimeDb, `postLikes/${postId}`))
-      
-      // Delete all comments
       await remove(ref(realtimeDb, `postComments/${postId}`))
 
-      return { success: true }
+      return { success: true, deleted: true }
     } catch (error) {
       console.error('Error deleting post:', error)
       return { success: false, error: error.message }

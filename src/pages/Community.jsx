@@ -270,15 +270,17 @@ const Community = () => {
     }
   }
 
-  // Handle delete post
+  // Handle delete post from community only (do not remove from profile/explore)
   const handleDeletePost = async (postId) => {
-    if (!window.confirm('Are you sure you want to delete this post?')) return
+    if (!window.confirm('Remove this post from Community feed?')) return
 
     const currentUserId = authUser.uid || authUser.id
-    
+
     try {
-      const result = await firebaseRealtime.deletePost(postId, currentUserId)
+      const result = await firebaseRealtime.deletePost(postId, currentUserId, { scope: 'community' })
       if (result.success) {
+        // It should disappear from community immediately after scoped removal.
+        setPosts((prev) => prev.filter((post) => post.id !== postId))
         setSelectedPost(null)
       } else {
         alert('Error: ' + result.error)
