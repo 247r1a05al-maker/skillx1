@@ -46,13 +46,68 @@ const Navbar = () => {
   const searchRef = useRef(null)
 
   const currentUserId = user?.uid || user?.id
-  const suggestedQuestions = [
-    'What is Skill Exchange used for?',
-    'How do I earn badges?',
-    'How do I earn coins?',
-    'How do I post to Community only?',
-    'How does delete work in Community?',
-    'How do I find users in Explore?',
+  const supportQuestionLibrary = [
+    {
+      title: 'Getting Started',
+      questions: [
+        'What is Skill Exchange used for?',
+        'How do I start using this website?',
+        'Which page should I open first?',
+        'How do I complete my profile setup?',
+        'How do I find people with my skill interests?',
+      ],
+    },
+    {
+      title: 'Posts And Visibility',
+      questions: [
+        'How do I create a post?',
+        'How do I post to Community only?',
+        'How do I post to Explore only?',
+        'How do I post to both Community and Explore?',
+        'How does delete work in Community?',
+        'How do I fully delete a post everywhere?',
+      ],
+    },
+    {
+      title: 'Badges And Coins',
+      questions: [
+        'How do I earn badges?',
+        'How do I earn coins?',
+        'Where can I check my coins balance?',
+        'Why did my badge not unlock yet?',
+        'How do I increase activity faster?',
+      ],
+    },
+    {
+      title: 'Community And Explore',
+      questions: [
+        'What is the use of Explore page?',
+        'How do I follow users?',
+        'How do I check follow requests?',
+        'How do I discover groups relevant to my skills?',
+        'How do I engage in Community correctly?',
+      ],
+    },
+    {
+      title: 'Messages And Groups',
+      questions: [
+        'How do I send messages in Inbox?',
+        'Can I send image or file in chat?',
+        'How do I join groups?',
+        'How do I see group invitations?',
+        'How do I chat in groups?',
+      ],
+    },
+    {
+      title: 'Account And Settings',
+      questions: [
+        'How do I edit my profile?',
+        'How do I change my avatar?',
+        'Where do I find certificates page?',
+        'How do I update my skills list?',
+        'How do I log out safely?',
+      ],
+    },
   ]
 
   const handleSearch = useDebounce((query) => {
@@ -227,20 +282,44 @@ const Navbar = () => {
       return 'Coins are earned from platform activity and can be tracked on the Coins page.'
     }
 
+    if (hasAny(['start', 'begin', 'first step'])) {
+      return 'Start with Profile setup, then visit Explore to connect with users, and use Community for posting updates.'
+    }
+
     if (hasAny(['post']) && hasAny(['community'])) {
       return 'Create a post from Profile and choose Community in visibility targets to show it in Community feed.'
+    }
+
+    if (hasAny(['post']) && hasAny(['explore'])) {
+      return 'Create a post from Profile and choose Explore in visibility targets to show it on Explore cards.'
+    }
+
+    if (hasAny(['post']) && hasAny(['both', 'all', 'community', 'explore'])) {
+      return 'In post visibility, select multiple targets (Profile, Community, Explore) to publish to all selected places.'
     }
 
     if (hasAny(['delete', 'remove']) && hasAny(['community'])) {
       return 'Deleting from Community removes that post from Community feed only. Full delete from all places is available in Profile.'
     }
 
+    if (hasAny(['delete', 'remove']) && hasAny(['all', 'everywhere', 'full'])) {
+      return 'To remove a post from all places, delete it from your Profile posts section.'
+    }
+
     if (hasAny(['explore', 'discover'])) {
       return 'Explore helps you discover users and skills, then connect or follow based on your interests.'
     }
 
+    if (hasAny(['follow request', 'follow requests'])) {
+      return 'Use the Follow Requests icon in the top navbar to view and manage incoming requests.'
+    }
+
     if (hasAny(['group', 'groups'])) {
       return 'Use Groups to join communities, chat with members, and collaborate around shared skills.'
+    }
+
+    if (hasAny(['invitation', 'invite']) && hasAny(['group'])) {
+      return 'Use the Group Invitations icon in navbar to review and accept or decline group invites.'
     }
 
     if (hasAny(['inbox', 'message', 'messages', 'chat'])) {
@@ -387,11 +466,11 @@ const Navbar = () => {
                 initial={{ opacity: 0, y: -10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className="fixed top-20 right-6 w-[min(92vw,640px)] h-[75vh] max-h-[760px] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 flex flex-col"
+                className="fixed top-16 left-0 lg:left-64 right-0 bottom-0 bg-white border-t border-gray-200 z-50 flex flex-col"
               >
                 {/* Header */}
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="font-bold text-gray-900">Support Chat</h3>
+                  <h3 className="font-bold text-gray-900 text-lg">Support Chat</h3>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-green-600 font-medium">Online</span>
                     <button
@@ -404,62 +483,71 @@ const Navbar = () => {
                   </div>
                 </div>
 
-                {/* Suggested Questions */}
-                <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {suggestedQuestions.map((question) => (
-                      <button
-                        key={question}
-                        onClick={() => sendQuickSupportQuestion(question)}
-                        className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 transition"
-                      >
-                        {question}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Messages */}
-                <div className="overflow-y-auto flex-1" ref={supportMessagesRef}>
-                  <div className="p-3 space-y-2">
-                    {supportMessages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${
-                          msg.role === 'assistant'
-                            ? 'bg-gray-100 text-gray-800 mr-auto'
-                            : 'bg-indigo-600 text-white ml-auto'
-                        }`}
-                      >
-                        {msg.text}
+                <div className="flex flex-1 min-h-0">
+                  {/* Question Library */}
+                  <div className="w-[360px] border-r border-gray-200 bg-gray-50 overflow-y-auto p-4 space-y-4">
+                    {supportQuestionLibrary.map((section) => (
+                      <div key={section.title} className="space-y-2">
+                        <h4 className="text-sm font-bold text-gray-800">{section.title}</h4>
+                        <div className="space-y-1.5">
+                          {section.questions.map((question) => (
+                            <button
+                              key={`${section.title}-${question}`}
+                              onClick={() => sendQuickSupportQuestion(question)}
+                              className="w-full text-left px-3 py-2 text-xs rounded-lg border border-indigo-100 bg-white text-indigo-700 hover:bg-indigo-50 transition"
+                            >
+                              {question}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
 
-                {/* Input */}
-                <div className="p-3 border-t border-gray-200">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={supportInput}
-                      onChange={(e) => setSupportInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          sendSupportMessage()
-                        }
-                      }}
-                      placeholder="Ask about Profile, Posts, Coins, Badges..."
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                      onClick={sendSupportMessage}
-                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-                      title="Send"
-                    >
-                      <FiSend size={16} />
-                    </button>
+                  {/* Chat Area */}
+                  <div className="flex-1 min-w-0 flex flex-col">
+                    <div className="overflow-y-auto flex-1" ref={supportMessagesRef}>
+                      <div className="p-4 space-y-3">
+                        {supportMessages.map((msg) => (
+                          <div
+                            key={msg.id}
+                            className={`max-w-[85%] px-4 py-2.5 rounded-xl text-sm ${
+                              msg.role === 'assistant'
+                                ? 'bg-gray-100 text-gray-800 mr-auto'
+                                : 'bg-indigo-600 text-white ml-auto'
+                            }`}
+                          >
+                            {msg.text}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Input */}
+                    <div className="p-4 border-t border-gray-200">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={supportInput}
+                          onChange={(e) => setSupportInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              sendSupportMessage()
+                            }
+                          }}
+                          placeholder="Type your question in your own words..."
+                          className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <button
+                          onClick={sendSupportMessage}
+                          className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                          title="Send"
+                        >
+                          <FiSend size={16} />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
