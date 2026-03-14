@@ -281,44 +281,30 @@ const Explore = () => {
   }, [filteredAndSorted])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <motion.section
-        initial={{ opacity: 0, y: -14 }}
+        initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl border border-indigo-200 bg-gradient-to-br from-slate-900 via-indigo-900 to-blue-800 text-white p-6 md:p-8"
+        className="rounded-3xl border border-gray-200 bg-white px-5 py-5 shadow-sm"
       >
-        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute -bottom-14 left-6 w-52 h-52 rounded-full bg-cyan-300/20 blur-3xl" />
-        <div className="relative z-10">
-          <p className="text-cyan-200 font-semibold tracking-wide text-sm uppercase">Skill Network</p>
-          <h1 className="mt-2 text-3xl md:text-5xl font-black leading-tight">Discover Builders, Mentors, and Teammates</h1>
-          <p className="text-blue-100 mt-3 max-w-2xl">Find people by skills, activity, and shared interests. Start conversations directly from here.</p>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-            <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3">
-              <p className="text-xs text-blue-100">Total Members</p>
-              <p className="text-2xl font-extrabold">{filteredAndSorted.length}</p>
-            </div>
-            <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3">
-              <p className="text-xs text-blue-100">Online Now</p>
-              <p className="text-2xl font-extrabold">{onlineMembersCount}</p>
-            </div>
-            <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3">
-              <p className="text-xs text-blue-100">Visible Cards</p>
-              <p className="text-2xl font-extrabold">{showingCount}</p>
-            </div>
-            <div className="rounded-2xl bg-white/10 border border-white/20 px-4 py-3">
-              <p className="text-xs text-blue-100">Top Skills</p>
-              <p className="text-2xl font-extrabold">{topSkillTags.length}</p>
-            </div>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-black text-gray-900">Explore People</h1>
+            <p className="text-gray-600 mt-1">Connect with active members, mentors, and collaborators.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-sm font-bold">
+              <FiUsers className="inline mr-1" /> {filteredAndSorted.length} Members
+            </span>
+            <span className="px-3 py-1.5 rounded-full bg-green-50 border border-green-100 text-green-700 text-sm font-bold">
+              <FiActivity className="inline mr-1" /> {onlineMembersCount} Online
+            </span>
+            <span className="px-3 py-1.5 rounded-full bg-amber-50 border border-amber-100 text-amber-700 text-sm font-bold">
+              <FiTrendingUp className="inline mr-1" /> {topSkillTags.length} Hot Skills
+            </span>
           </div>
         </div>
-      </motion.section>
 
-      <section className="rounded-3xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-3 text-gray-800 font-bold">
-          <FiActivity className="text-indigo-600" /> Featured Members
-        </div>
         <div className="flex gap-3 overflow-x-auto pb-1">
           {featuredMembers.length > 0 ? featuredMembers.map((member) => (
             <button
@@ -326,7 +312,7 @@ const Explore = () => {
               onClick={() => navigate(`/profile/${member.id}`)}
               className="shrink-0 w-24 text-center group"
             >
-              <div className="relative mx-auto w-16 h-16 rounded-full p-[2px] bg-gradient-to-br from-pink-500 via-orange-500 to-yellow-500">
+              <div className="relative mx-auto w-16 h-16 rounded-full p-[2px] bg-gradient-to-br from-fuchsia-500 via-orange-500 to-amber-400">
                 <div className="w-full h-full rounded-full bg-white p-1">
                   <Avatar src={member.avatar} name={member.name} userId={member.id} size="md" />
                 </div>
@@ -338,11 +324,11 @@ const Explore = () => {
             <p className="text-sm text-gray-500">No featured members yet</p>
           )}
         </div>
-      </section>
+      </motion.section>
 
       <section className="rounded-3xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-extrabold text-gray-900 flex items-center gap-2"><FiSliders className="text-indigo-600" /> Discover Controls</h2>
+          <h2 className="text-lg font-extrabold text-gray-900 flex items-center gap-2"><FiSliders className="text-indigo-600" /> Filters</h2>
           <div className="text-sm text-gray-600">Showing <span className="font-bold text-gray-900">{showingCount}</span> of <span className="font-bold text-gray-900">{filteredAndSorted.length}</span></div>
         </div>
 
@@ -457,7 +443,7 @@ const Explore = () => {
           </div>
         </div>
       ) : visibleUsers.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
           {visibleUsers.map((user, index) => {
             const isOnline = !!user.isOnline
             const followers = followersCounts[user.id] ?? 0
@@ -473,12 +459,12 @@ const Explore = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(index * 0.03, 0.25) }}
               >
-                <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                  <div className={`h-20 bg-gradient-to-r ${bannerClass}`} />
-                  <div className="px-5 pb-5 -mt-10">
+                <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+                  <div className={`h-16 bg-gradient-to-r ${bannerClass}`} />
+                  <div className="px-5 pb-5 -mt-8">
                     <div className="flex items-start justify-between">
                       <div className="relative">
-                        <div className="rounded-full ring-4 ring-white p-1 bg-white shadow">
+                        <div className="rounded-full ring-4 ring-white p-0.5 bg-white shadow-md">
                           <Avatar src={user.avatar} name={user.name} userId={user.id} size="md" />
                         </div>
                         <span
@@ -493,9 +479,9 @@ const Explore = () => {
                       </span>
                     </div>
 
-                    <div className="mt-3">
+                    <div className="mt-2.5">
                       <h3 className="text-lg font-bold text-gray-900 leading-tight line-clamp-1">{user.name || 'Member'}</h3>
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-1">{getTagline(user)}</p>
+                      <p className="text-sm text-gray-600 mt-0.5 line-clamp-1">{getTagline(user)}</p>
                     </div>
 
                     <div className="flex flex-wrap gap-2 mt-4 min-h-[28px]">
@@ -514,18 +500,18 @@ const Explore = () => {
                       ) : null}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 mt-4 text-sm text-gray-600">
-                      <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                    <div className="grid grid-cols-2 gap-2 mt-3 text-sm text-gray-600">
+                      <div className="rounded-xl bg-slate-50 px-3 py-2 border border-slate-100">
                         <p className="text-[11px] uppercase tracking-wide text-gray-500">Followers</p>
                         <p className="font-bold text-gray-900">{followers}</p>
                       </div>
-                      <div className="rounded-xl bg-gray-50 px-3 py-2 border border-gray-100">
+                      <div className="rounded-xl bg-slate-50 px-3 py-2 border border-slate-100">
                         <p className="text-[11px] uppercase tracking-wide text-gray-500">Groups</p>
                         <p className="font-bold text-gray-900">{groups}</p>
                       </div>
                     </div>
 
-                    <div className="flex gap-3 mt-5">
+                    <div className="flex gap-2.5 mt-4">
                       <button
                         type="button"
                         className="flex-1 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition font-semibold flex items-center justify-center gap-2"
