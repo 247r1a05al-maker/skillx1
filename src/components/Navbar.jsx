@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiSearch, FiBell, FiUser, FiLogOut, FiUserPlus, FiUsers, FiHeart, FiMessageCircle, FiCheckCircle, FiX, FiMenu } from 'react-icons/fi'
-import { useAuthStore, useNotificationStore, useUIStore } from '../store'
+import { FiSearch, FiLogOut, FiUserPlus, FiUsers, FiCheckCircle, FiX, FiMenu, FiHeadphones, FiSend } from 'react-icons/fi'
+import { useAuthStore, useUIStore } from '../store'
 import { useTheme } from '../context/ThemeContext'
 import { useDebounce } from '../hooks'
 import { authService } from '../services/auth'
@@ -22,20 +22,26 @@ const getUserSkills = (user) => {
 const Navbar = () => {
   const navigate = useNavigate()
   const { user, clearAuth } = useAuthStore()
-  const { unreadCount, setUnreadCount } = useNotificationStore()
   const { toggleSidebar } = useUIStore()
   const { isElite } = useTheme()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications, setNotifications] = useState([])
+  const [showSupportChat, setShowSupportChat] = useState(false)
+  const [supportInput, setSupportInput] = useState('')
+  const [supportMessages, setSupportMessages] = useState([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      text: 'Hi! Ask me basic questions about Skill Exchange. I can help with Profile, Community, Explore, Posts, Badges, Coins, Groups, and Inbox.',
+    },
+  ])
   const [loggingOut, setLoggingOut] = useState(false)
   const [followRequestCount, setFollowRequestCount] = useState(0)
   const [groupInvitationCount, setGroupInvitationCount] = useState(0)
   const [allUsers, setAllUsers] = useState([])
   const [allGroups, setAllGroups] = useState([])
-  const notificationRef = useRef(null)
+  const supportRef = useRef(null)
   const searchRef = useRef(null)
 
   const currentUserId = user?.uid || user?.id
@@ -121,20 +127,6 @@ const Navbar = () => {
     }
   }
 
-  // Subscribe to notifications
-  useEffect(() => {
-    if (!user?.uid && !user?.id) return
-
-    const userId = user.uid || user.id
-    const unsubscribe = firebaseRealtime.subscribeToNotifications(userId, (notifs) => {
-      setNotifications(notifs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)))
-      const unread = notifs.filter(n => !n.read).length
-      setUnreadCount(unread)
-    })
-
-    return () => unsubscribe?.()
-  }, [user, setUnreadCount])
-
   // Subscribe to follow requests count
   useEffect(() => {
     if (!user?.uid && !user?.id) return
@@ -184,8 +176,8 @@ const Navbar = () => {
   // Close notifications dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
-        setShowNotifications(false)
+      if (supportRef.current && !supportRef.current.contains(event.target)) {
+        setShowSupportChat(false)
       }
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setShowSearchDropdown(false)
@@ -196,43 +188,45 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Mark notification as read
-  const markAsRead = async (notificationId) => {
-    const userId = user.uid || user.id
-    await firebaseRealtime.markNotificationAsRead(userId, notificationId)
-  }
-
-  // Mark all as read
-  const markAllAsRead = async () => {
-    const userId = user.uid || user.id
-    for (const notif of notifications) {
-      if (!notif.read) {
-        await firebaseRealtime.markNotificationAsRead(userId, notif.id)
-      }
+  const getSupportReply = (query) => {
+    const q = normalizeString(query)
+    if (!q) return 'Please type your question.'
+    if (q.includes('useful') || q.includes('what is this') || q.includes('website')) {
+      return 'Skill Exchange helps users teach and learn skills, create posts, join groups, and connect with community members.'
     }
-  }
-
-  // Get notification icon
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'like': return <FiHeart className="text-red-500" />
-      case 'comment': return <FiMessageCircle className="text-blue-500" />
-      case 'follow': return <FiUserPlus className="text-green-500" />
-      case 'message': return <FiMessageCircle className="text-purple-500" />
-      default: return <FiBell className="text-gray-500" />
+    if (q.includes('badge') || q.includes('batch')) {
+      return 'Badges are earned by activity like posting, joining groups, following users, and regular engagement.'
     }
+    if (q.includes('coin')) {
+      return 'Coins are earned from platform activity and can be tracked on the Coins page.'
+    }
+    if (q.includes('post') && q.includes('community')) {
+      return 'Create a post from Profile and choose Community in visibility targets to show it in Community feed.'
+    }
+    if (q.includes('delete') && q.includes('community')) {
+      return 'Deleting from Community removes that post from Community feed only. Full delete from all places is available in Profile.'
+    }
+    if (q.includes('explore')) {
+      return 'Explore helps you discover users and skills, then connect or follow based on your interests.'
+    }
+    if (q.includes('group')) {
+      return 'Use Groups to join communities, chat with members, and collaborate around shared skills.'
+    }
+    if (q.includes('inbox') || q.includes('message') || q.includes('chat')) {
+      return 'Use Inbox to send direct messages, images, GIFs, and files to other users.'
+    }
+    return 'I can help with Skill Exchange basics. Try asking about Profile, Posts, Community, Explore, Coins, Badges, Groups, or Inbox.'
   }
 
-  // Format time ago
-  const timeAgo = (date) => {
-    const seconds = Math.floor((new Date() - new Date(date)) / 1000)
-    if (seconds < 60) return 'Just now'
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
+  const sendSupportMessage = () => {
+    const text = supportInput.trim()
+    if (!text) return
+
+    const userMessage = { id: `u-${Date.now()}`, role: 'user', text }
+    const botMessage = { id: `a-${Date.now() + 1}`, role: 'assistant', text: getSupportReply(text) }
+
+    setSupportMessages((prev) => [...prev, userMessage, botMessage])
+    setSupportInput('')
   }
 
   return (
@@ -328,98 +322,74 @@ const Navbar = () => {
           )}
         </button>
 
-        {/* Notifications */}
-        <div className="relative" ref={notificationRef}>
+        {/* Support */}
+        <div className="relative" ref={supportRef}>
           <button 
-            onClick={() => setShowNotifications(!showNotifications)}
+            onClick={() => setShowSupportChat(!showSupportChat)}
             className="relative p-2 hover:bg-gray-100 rounded-lg transition"
+            title="Support"
           >
-            <FiBell size={20} className="text-gray-600" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
+            <FiHeadphones size={20} className="text-gray-600" />
           </button>
 
-          {/* Notifications Dropdown */}
+          {/* Support Chat Panel */}
           <AnimatePresence>
-            {showNotifications && (
+            {showSupportChat && (
               <motion.div
                 initial={{ opacity: 0, y: -10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[500px] flex flex-col"
+                className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 h-[460px] flex flex-col"
               >
                 {/* Header */}
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                  <h3 className="font-bold text-gray-900">Notifications</h3>
-                  {notifications.length > 0 && (
-                    <button
-                      onClick={markAllAsRead}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                    >
-                      Mark all read
-                    </button>
-                  )}
+                  <h3 className="font-bold text-gray-900">Support Chat</h3>
+                  <span className="text-xs text-green-600 font-medium">Online</span>
                 </div>
 
-                {/* Notifications List */}
+                {/* Messages */}
                 <div className="overflow-y-auto flex-1">
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500">
-                      <FiBell size={48} className="mx-auto mb-3 text-gray-300" />
-                      <p>No notifications yet</p>
-                      <p className="text-sm mt-1">We'll notify you when something happens</p>
-                    </div>
-                  ) : (
-                    notifications.map((notif) => (
+                  <div className="p-3 space-y-2">
+                    {supportMessages.map((msg) => (
                       <div
-                        key={notif.id}
-                        onClick={() => {
-                          markAsRead(notif.id)
-                          if (notif.link) navigate(notif.link)
-                        }}
-                        className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition ${
-                          !notif.read ? 'bg-indigo-50' : ''
+                        key={msg.id}
+                        className={`max-w-[85%] px-3 py-2 rounded-xl text-sm ${
+                          msg.role === 'assistant'
+                            ? 'bg-gray-100 text-gray-800 mr-auto'
+                            : 'bg-indigo-600 text-white ml-auto'
                         }`}
                       >
-                        <div className="flex gap-3">
-                          <div className="flex-shrink-0 mt-1">
-                            {getNotificationIcon(notif.type)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-900">
-                              <span className="font-semibold">{notif.fromUserName || 'Someone'}</span>{' '}
-                              {notif.message}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">{timeAgo(notif.createdAt)}</p>
-                          </div>
-                          {!notif.read && (
-                            <div className="flex-shrink-0">
-                              <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
-                            </div>
-                          )}
-                        </div>
+                        {msg.text}
                       </div>
-                    ))
-                  )}
+                    ))}
+                  </div>
                 </div>
 
-                {/* Footer */}
-                {notifications.length > 0 && (
-                  <div className="p-3 border-t border-gray-200 text-center">
-                    <button
-                      onClick={() => {
-                        setShowNotifications(false)
-                        navigate('/notifications')
+                {/* Input */}
+                <div className="p-3 border-t border-gray-200">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={supportInput}
+                      onChange={(e) => setSupportInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          sendSupportMessage()
+                        }
                       }}
-                      className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                      placeholder="Ask about Profile, Posts, Coins, Badges..."
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      onClick={sendSupportMessage}
+                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                      title="Send"
                     >
-                      View all notifications
+                      <FiSend size={16} />
                     </button>
                   </div>
-                )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
