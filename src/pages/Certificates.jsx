@@ -57,6 +57,7 @@ const Certificates = () => {
   const [expandedRatingId, setExpandedRatingId] = useState(null)
   const [searchSuggestions, setSearchSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [activeQuickFilter, setActiveQuickFilter] = useState('')
   const [sortBy, setSortBy] = useState('rating')
   const [couponCode, setCouponCode] = useState('')
   const [couponResult, setCouponResult] = useState(null)
@@ -314,6 +315,17 @@ const Certificates = () => {
     if (filter.skill) setSearchTerm(filter.skill)
     setFilterType(filter.type)
     setFilterDepartment(filter.dept)
+    setActiveQuickFilter(filter.label)
+  }
+
+  const clearAllFilters = () => {
+    setSearchTerm('')
+    setFilterType('all')
+    setFilterDepartment('all')
+    setSortBy('rating')
+    setSearchSuggestions([])
+    setShowSuggestions(false)
+    setActiveQuickFilter('')
   }
 
   // Search suggestions
@@ -321,25 +333,26 @@ const Certificates = () => {
     if (!query.trim()) return []
     
     const lowerQuery = query.toLowerCase()
-    const suggestions = new Set()
+    const suggestions = new Map()
     
     allSkills.forEach(skill => {
       if (skill.toLowerCase().includes(lowerQuery)) {
-        suggestions.add({ type: 'skill', value: skill })
+        suggestions.set(`skill:${skill.toLowerCase()}`, { type: 'skill', value: skill })
       }
     })
     
     allCertificateNames.forEach(name => {
       if (name.toLowerCase().includes(lowerQuery)) {
-        suggestions.add({ type: 'certificate', value: name })
+        suggestions.set(`certificate:${name.toLowerCase()}`, { type: 'certificate', value: name })
       }
     })
     
-    return Array.from(suggestions).slice(0, 8)
+    return Array.from(suggestions.values()).slice(0, 8)
   }
 
   const handleSearchInput = (value) => {
     setSearchTerm(value)
+    setActiveQuickFilter('')
     const suggestions = getSearchSuggestions(value)
     setSearchSuggestions(suggestions)
     setShowSuggestions(suggestions.length > 0)
@@ -347,6 +360,7 @@ const Certificates = () => {
 
   const handleSuggestionClick = (suggestion) => {
     setSearchTerm(suggestion.value)
+    setActiveQuickFilter('')
     setShowSuggestions(false)
   }
 
@@ -525,7 +539,10 @@ const Certificates = () => {
                 key={dept.id}
                 variant={filterDepartment === dept.id ? 'primary' : 'outline'}
                 size="sm"
-                onClick={() => setFilterDepartment(dept.id)}
+                onClick={() => {
+                  setFilterDepartment(dept.id)
+                  setActiveQuickFilter('')
+                }}
                 className="text-xs flex flex-col items-center gap-1"
               >
                 <span>{dept.label}</span>
@@ -579,11 +596,23 @@ const Certificates = () => {
                   key={idx}
                   whileHover={{ scale: 1.05 }}
                   onClick={() => applyQuickFilter(filter)}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-semibold hover:bg-indigo-700 shadow-sm transition-colors border border-indigo-500"
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm transition-colors border ${
+                    activeQuickFilter === filter.label
+                      ? 'bg-indigo-700 text-white border-indigo-700'
+                      : 'bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200'
+                  }`}
                 >
                   {filter.label}
                 </motion.button>
               ))}
+              {(searchTerm || filterType !== 'all' || filterDepartment !== 'all' || sortBy !== 'rating') && (
+                <button
+                  onClick={clearAllFilters}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  Reset Filters
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -617,13 +646,13 @@ const Certificates = () => {
 
           {/* Type Filters */}
           <div className="flex items-center gap-2">
-            <Button variant={filterType === 'all' ? 'primary' : 'outline'} size="sm" onClick={() => setFilterType('all')}>
+            <Button variant={filterType === 'all' ? 'primary' : 'outline'} size="sm" onClick={() => { setFilterType('all'); setActiveQuickFilter('') }}>
               All
             </Button>
-            <Button variant={filterType === 'free' ? 'primary' : 'outline'} size="sm" onClick={() => setFilterType('free')}>
+            <Button variant={filterType === 'free' ? 'primary' : 'outline'} size="sm" onClick={() => { setFilterType('free'); setActiveQuickFilter('') }}>
               Free
             </Button>
-            <Button variant={filterType === 'paid' ? 'primary' : 'outline'} size="sm" onClick={() => setFilterType('paid')}>
+            <Button variant={filterType === 'paid' ? 'primary' : 'outline'} size="sm" onClick={() => { setFilterType('paid'); setActiveQuickFilter('') }}>
               Paid
             </Button>
           </div>

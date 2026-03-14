@@ -188,8 +188,8 @@ const Dashboard = () => {
       {/* Welcome Header with Streak */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: '#111827' }}>Welcome back, {authUser?.name || authUser?.displayName || 'there'}! 👋</h1>
-          <p className="mt-2" style={{ color: '#6B7280' }}>Here's your learning progress overview</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome back, {authUser?.name || authUser?.displayName || 'there'}! 👋</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-300">Here's your learning progress overview</p>
         </div>
         <div className="flex items-center gap-4">
           {/* Streak Fire Icon - Click to see details */}
@@ -253,140 +253,6 @@ const Dashboard = () => {
             <Button variant="secondary" size="sm" onClick={() => navigate('/community')}>Post</Button>
           </motion.div>
         </div>
-      </Card>
-
-      {/* Earning Opportunities */}
-      <Card>
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <FiGift className="text-indigo-600" size={24} />
-            <h2 className="text-xl font-bold text-gray-900">Earn Coins</h2>
-          </div>
-          <Badge variant="primary">{earningOpportunities.filter(o => !o.claimed).length} available</Badge>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {earningOpportunities.map((opportunity) => {
-            // Define unique gradient colors for each opportunity
-            const getCardStyle = () => {
-              if (opportunity.claimed) {
-                return 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 opacity-70'
-              }
-              
-              switch(opportunity.id) {
-                case 'registration-bonus':
-                  return 'bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 border-green-200 hover:shadow-lg hover:shadow-green-100'
-                case 'profile-completion':
-                  return 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-200 hover:shadow-lg hover:shadow-blue-100'
-                case 'join-group':
-                  return 'bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 border-purple-200 hover:shadow-lg hover:shadow-purple-100'
-                case 'follow-10':
-                  return 'bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 border-orange-200 hover:shadow-lg hover:shadow-orange-100'
-                default:
-                  return 'bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200 hover:shadow-lg'
-              }
-            }
-            
-            const getIconBg = () => {
-              if (opportunity.claimed) return 'bg-gray-200'
-              
-              switch(opportunity.id) {
-                case 'registration-bonus': return 'bg-gradient-to-br from-green-100 to-emerald-100'
-                case 'profile-completion': return 'bg-gradient-to-br from-blue-100 to-indigo-100'
-                case 'join-group': return 'bg-gradient-to-br from-purple-100 to-pink-100'
-                case 'follow-10': return 'bg-gradient-to-br from-orange-100 to-amber-100'
-                default: return 'bg-white'
-              }
-            }
-            
-            return (
-            <motion.div
-              key={opportunity.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={`p-5 rounded-xl border-2 transition-all ${getCardStyle()}`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-xl shadow-sm ${getIconBg()}`}>
-                    {opportunity.id === 'registration-bonus' && <FiGift className="text-green-600" size={24} />}
-                    {opportunity.id === 'profile-completion' && <FiCheckCircle className="text-blue-600" size={24} />}
-                    {opportunity.id === 'join-group' && <FiUsers className="text-purple-600" size={24} />}
-                    {opportunity.id === 'follow-10' && <FiAward className="text-orange-600" size={24} />}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg">{opportunity.title}</h3>
-                    <p className="text-sm text-gray-600 mt-0.5">{opportunity.description}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress Bar for milestone rewards */}
-              {opportunity.progress !== undefined && opportunity.required && (
-                <div className="mb-4">
-                  <div className="flex justify-between text-xs font-medium text-gray-700 mb-2">
-                    <span>{opportunity.progress}/{opportunity.required}</span>
-                    <span>{Math.round((opportunity.progress / opportunity.required) * 100)}%</span>
-                  </div>
-                  <div className="h-3 bg-white rounded-full overflow-hidden shadow-inner">
-                    <div
-                      className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-500 rounded-full"
-                      style={{ width: `${Math.min((opportunity.progress / opportunity.required) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow-sm">
-                  <SCoinIcon className="text-yellow-500" size={20} />
-                  <span className="text-xl font-bold bg-gradient-to-r from-yellow-600 to-orange-600 bg-clip-text text-transparent">{opportunity.coins} coins</span>
-                </div>
-
-                <Button
-                  variant={opportunity.claimed ? 'secondary' : 'primary'}
-                  size="sm"
-                  onClick={() => {
-                    if (!opportunity.canClaim && !opportunity.claimed) {
-                      // Navigate to complete the task
-                      if (opportunity.id === 'profile-completion') {
-                        navigate('/profile')
-                      } else if (opportunity.id === 'join-group') {
-                        navigate('/groups')
-                      } else if (opportunity.id === 'follow-10') {
-                        navigate('/explore')
-                      }
-                    } else {
-                      handleClaimReward(opportunity)
-                    }
-                  }}
-                  disabled={opportunity.claimed || claimingReward === opportunity.id}
-                  className={opportunity.claimed ? 'cursor-not-allowed' : ''}
-                >
-                  {claimingReward === opportunity.id ? (
-                    'Claiming...'
-                  ) : opportunity.claimed ? (
-                    <>
-                      <FiCheckCircle size={16} /> Claimed
-                    </>
-                  ) : !opportunity.canClaim ? (
-                    'Complete Task'
-                  ) : (
-                    'Claim'
-                  )}
-                </Button>
-              </div>
-            </motion.div>
-            )
-          })}
-        </div>
-
-        {earningOpportunities.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            <FiGift size={48} className="mx-auto mb-2 text-gray-300" />
-            <p>Loading earning opportunities...</p>
-          </div>
-        )}
       </Card>
 
       {/* Quick Actions */}

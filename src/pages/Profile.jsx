@@ -33,8 +33,6 @@ import { userProfileService } from '../services/user-profile'
 import { calculateBadges, BADGES } from '../utils/badges'
 import { useToast } from '../hooks/useToast'
 
-const LEVEL_POINTS = 120
-
 const formatDateTime = (value) => {
   if (!value) return 'Recently'
   const time = new Date(value)
@@ -262,8 +260,6 @@ const Profile = () => {
   const [followersCount, setFollowersCount] = useState(0)
   const [followingCount, setFollowingCount] = useState(0)
   const [groupsJoined, setGroupsJoined] = useState(0)
-  const [totalUsers, setTotalUsers] = useState(0)
-
   const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 })
   const [recentActivity, setRecentActivity] = useState([])
   const [userPosts, setUserPosts] = useState([])
@@ -372,7 +368,6 @@ const Profile = () => {
     })
     const unsubPosts = firebaseRealtime.subscribeToUserPosts(profileUserId, setUserPosts)
     const unsubAchievements = firebaseRealtime.subscribeToUserAchievements(profileUserId, setAchievements)
-    const unsubUsers = firebaseRealtime.subscribeToUsers((users) => setTotalUsers(users.length || 0))
     const unsubFollowersList = firebaseRealtime.subscribeToFollowers(profileUserId, setFollowersList)
     const unsubFollowingList = firebaseRealtime.subscribeToFollowing(profileUserId, setFollowingList)
 
@@ -387,7 +382,6 @@ const Profile = () => {
       unsubActivities?.()
       unsubPosts?.()
       unsubAchievements?.()
-      unsubUsers?.()
       unsubFollowersList?.()
       unsubFollowingList?.()
     }
@@ -447,36 +441,6 @@ const Profile = () => {
       setSelectedPost(latest)
     }
   }, [userPosts, selectedPost])
-
-  const likesReceived = useMemo(
-    () => userPosts.reduce((sum, post) => sum + (post.likesCount || 0), 0),
-    [userPosts]
-  )
-
-  const rankMetrics = useMemo(() => {
-    const postPoints = userPosts.length * 15
-    const activityPoints = recentActivity.length * 5
-    const followerPoints = followersCount * 3
-    const likesPoints = likesReceived * 4
-    const groupPoints = groupsJoined * 10
-    const streakPoints = (streakData?.currentStreak || 0) * 2
-
-    const totalPoints = postPoints + activityPoints + followerPoints + likesPoints + groupPoints + streakPoints
-    const level = Math.max(1, Math.floor(totalPoints / LEVEL_POINTS) + 1)
-    const progressToNext = Math.round((totalPoints % LEVEL_POINTS) / LEVEL_POINTS * 100)
-
-    const computedRank = totalUsers > 0
-      ? Math.max(1, totalUsers - Math.floor(totalPoints / 50))
-      : 1
-
-    return {
-      totalPoints,
-      level,
-      progressToNext,
-      rank: user?.communityRank || computedRank,
-      rankedTotal: user?.totalRankedUsers || totalUsers || 1,
-    }
-  }, [user, userPosts, recentActivity, followersCount, likesReceived, groupsJoined, streakData, totalUsers])
 
   const badgeStats = useMemo(() => {
     return calculateBadges({
