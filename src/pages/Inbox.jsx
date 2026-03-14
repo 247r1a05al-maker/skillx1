@@ -372,7 +372,7 @@ const Inbox = () => {
   }
 
   return (
-    <div className="w-full h-[calc(100vh-80px)] min-h-0 flex gap-0 bg-gray-50 overflow-hidden">
+    <div className="w-full h-full min-h-0 flex gap-0 bg-gray-50 overflow-hidden">
       {/* Hidden file inputs */}
       <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFileSelected} />
       <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoFileSelected} />
