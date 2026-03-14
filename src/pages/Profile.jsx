@@ -110,7 +110,7 @@ const POST_TYPE_OPTIONS = [
 
 const DEFAULT_POST_FORM = {
   type: 'update',
-  visibility: 'profile',
+  visibilityTargets: ['profile'],
   title: '',
   content: '',
   imageUrl: '',
@@ -706,9 +706,16 @@ const Profile = () => {
     const role = postForm.role.trim()
     const teamSize = postForm.teamSize.trim()
     const learned = postForm.learned.trim()
+    const allowedTargets = new Set(['profile', 'community', 'explore'])
+    const selectedTargets = [...new Set((postForm.visibilityTargets || []).filter((target) => allowedTargets.has(target)))]
 
     if (!content) {
       setPostFormError('Content is required.')
+      return
+    }
+
+    if (selectedTargets.length === 0) {
+      setPostFormError('Select at least one destination: Profile, Community, or Explore.')
       return
     }
 
@@ -801,9 +808,7 @@ const Profile = () => {
         content: formattedContent,
         title,
         type: postForm.type,
-        visibility: ['profile', 'community', 'explore'].includes(postForm.visibility)
-          ? postForm.visibility
-          : 'profile',
+        visibilityTargets: selectedTargets,
         projectLink: projectLink || null,
         image: imageUrl || null,
         video: videoUrl || null,
@@ -1573,15 +1578,33 @@ const Profile = () => {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Visibility <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  value={postForm.visibility}
-                  onChange={(e) => setPostForm((prev) => ({ ...prev, visibility: e.target.value }))}
-                >
-                  <option value="profile">Profile only</option>
-                  <option value="community">Community feed</option>
-                  <option value="explore">Explore page</option>
-                </select>
+                <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
+                  {[
+                    { value: 'profile', label: 'Profile' },
+                    { value: 'community', label: 'Community' },
+                    { value: 'explore', label: 'Explore' },
+                  ].map((item) => {
+                    const checked = (postForm.visibilityTargets || []).includes(item.value)
+                    return (
+                      <label key={item.value} className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            setPostForm((prev) => {
+                              const current = new Set(prev.visibilityTargets || [])
+                              if (e.target.checked) current.add(item.value)
+                              else current.delete(item.value)
+                              return { ...prev, visibilityTargets: Array.from(current) }
+                            })
+                          }}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>{item.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
 
               {postComposerMode === 'advanced' && (

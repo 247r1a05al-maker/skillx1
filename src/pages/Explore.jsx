@@ -250,8 +250,10 @@ const Explore = () => {
       firebaseRealtime.subscribeToUserPosts(userId, (posts) => {
         const latestPost = Array.isArray(posts)
           ? posts.find((post) => {
-              const visibility = post?.visibility || 'community'
-              return visibility === 'community' || visibility === 'explore'
+              const targets = Array.isArray(post?.visibilityTargets) && post.visibilityTargets.length > 0
+                ? post.visibilityTargets
+                : [post?.visibility || 'community']
+              return targets.includes('community') || targets.includes('explore')
             }) || null
           : null
         setLatestPostsByUser((prev) => (prev[userId] === latestPost ? prev : { ...prev, [userId]: latestPost }))

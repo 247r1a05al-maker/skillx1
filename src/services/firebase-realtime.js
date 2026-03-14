@@ -1618,7 +1618,17 @@ class FirebaseRealtimeService {
     const normalizedTitle = (postData?.title || '').toString().trim()
     const normalizedType = allowedTypes.has(postData?.type) ? postData.type : 'update'
     const allowedVisibility = new Set(['profile', 'community', 'explore'])
-    const normalizedVisibility = allowedVisibility.has(postData?.visibility) ? postData.visibility : 'community'
+    const normalizedVisibilityTargets = Array.isArray(postData?.visibilityTargets)
+      ? [...new Set(postData.visibilityTargets.filter((item) => allowedVisibility.has(item)))].slice(0, 3)
+      : allowedVisibility.has(postData?.visibility)
+        ? [postData.visibility]
+        : ['community']
+
+    if (normalizedVisibilityTargets.length === 0) normalizedVisibilityTargets.push('community')
+
+    const normalizedVisibility = normalizedVisibilityTargets.includes('community')
+      ? 'community'
+      : normalizedVisibilityTargets[0]
     const normalizedImage = (postData?.image || '').toString().trim()
     const normalizedVideo = (postData?.video || '').toString().trim()
     const normalizedProjectLink = (postData?.projectLink || '').toString().trim()
@@ -1653,6 +1663,7 @@ class FirebaseRealtimeService {
         authorId: postData.authorId,
         type: normalizedType,
         visibility: normalizedVisibility,
+        visibilityTargets: normalizedVisibilityTargets,
         title: normalizedTitle || null,
         content: normalizedContent,
         projectLink: normalizedProjectLink || null,
@@ -1674,11 +1685,7 @@ class FirebaseRealtimeService {
       const contentPreview = postData.content.substring(0, 40) + (postData.content.length > 40 ? '...' : '')
       await this.logUserActivity(postData.authorId, {
         type: 'post_created',
-        title: normalizedVisibility === 'profile'
-          ? 'Posted on profile'
-          : normalizedVisibility === 'explore'
-            ? 'Posted in explore'
-            : 'Posted in community',
+        title: `Posted in ${normalizedVisibilityTargets.join(', ')}`,
         description: contentPreview,
         icon: '📝',
       })
@@ -1700,8 +1707,12 @@ class FirebaseRealtimeService {
       if (snapshot.exists()) {
         snapshot.forEach((childSnapshot) => {
           const post = childSnapshot.val()
+          const targets = Array.isArray(post?.visibilityTargets) && post.visibilityTargets.length > 0
+            ? post.visibilityTargets
+            : [post?.visibility || 'community']
+
           // Community feed should include community-targeted posts only.
-          if ((post?.visibility || 'community') === 'community') {
+          if (targets.includes('community')) {
             posts.push(post)
           }
         })
