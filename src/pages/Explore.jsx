@@ -248,7 +248,12 @@ const Explore = () => {
 
     const unsubscribers = ids.map((userId) => (
       firebaseRealtime.subscribeToUserPosts(userId, (posts) => {
-        const latestPost = Array.isArray(posts) && posts.length > 0 ? posts[0] : null
+        const latestPost = Array.isArray(posts)
+          ? posts.find((post) => {
+              const visibility = post?.visibility || 'community'
+              return visibility === 'community' || visibility === 'explore'
+            }) || null
+          : null
         setLatestPostsByUser((prev) => (prev[userId] === latestPost ? prev : { ...prev, [userId]: latestPost }))
       })
     ))

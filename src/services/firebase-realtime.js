@@ -1617,7 +1617,8 @@ class FirebaseRealtimeService {
     const normalizedContent = (postData?.content || '').toString().trim()
     const normalizedTitle = (postData?.title || '').toString().trim()
     const normalizedType = allowedTypes.has(postData?.type) ? postData.type : 'update'
-    const normalizedVisibility = postData?.visibility === 'profile' ? 'profile' : 'community'
+    const allowedVisibility = new Set(['profile', 'community', 'explore'])
+    const normalizedVisibility = allowedVisibility.has(postData?.visibility) ? postData.visibility : 'community'
     const normalizedImage = (postData?.image || '').toString().trim()
     const normalizedVideo = (postData?.video || '').toString().trim()
     const normalizedProjectLink = (postData?.projectLink || '').toString().trim()
@@ -1673,7 +1674,11 @@ class FirebaseRealtimeService {
       const contentPreview = postData.content.substring(0, 40) + (postData.content.length > 40 ? '...' : '')
       await this.logUserActivity(postData.authorId, {
         type: 'post_created',
-        title: normalizedVisibility === 'profile' ? 'Posted on profile' : 'Posted in community',
+        title: normalizedVisibility === 'profile'
+          ? 'Posted on profile'
+          : normalizedVisibility === 'explore'
+            ? 'Posted in explore'
+            : 'Posted in community',
         description: contentPreview,
         icon: '📝',
       })
@@ -1695,8 +1700,8 @@ class FirebaseRealtimeService {
       if (snapshot.exists()) {
         snapshot.forEach((childSnapshot) => {
           const post = childSnapshot.val()
-          // Keep community feed clean: hide profile-only posts.
-          if (post?.visibility !== 'profile') {
+          // Community feed should include community-targeted posts only.
+          if ((post?.visibility || 'community') === 'community') {
             posts.push(post)
           }
         })

@@ -801,7 +801,9 @@ const Profile = () => {
         content: formattedContent,
         title,
         type: postForm.type,
-        visibility: postForm.visibility === 'community' ? 'community' : 'profile',
+        visibility: ['profile', 'community', 'explore'].includes(postForm.visibility)
+          ? postForm.visibility
+          : 'profile',
         projectLink: projectLink || null,
         image: imageUrl || null,
         video: videoUrl || null,
@@ -1578,6 +1580,7 @@ const Profile = () => {
                 >
                   <option value="profile">Profile only</option>
                   <option value="community">Community feed</option>
+                  <option value="explore">Explore page</option>
                 </select>
               </div>
 
