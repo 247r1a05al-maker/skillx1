@@ -42,9 +42,18 @@ const Navbar = () => {
   const [allUsers, setAllUsers] = useState([])
   const [allGroups, setAllGroups] = useState([])
   const supportRef = useRef(null)
+  const supportMessagesRef = useRef(null)
   const searchRef = useRef(null)
 
   const currentUserId = user?.uid || user?.id
+  const suggestedQuestions = [
+    'What is Skill Exchange used for?',
+    'How do I earn badges?',
+    'How do I earn coins?',
+    'How do I post to Community only?',
+    'How does delete work in Community?',
+    'How do I find users in Explore?',
+  ]
 
   const handleSearch = useDebounce((query) => {
     const clean = normalizeString(query)
@@ -188,6 +197,12 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (!showSupportChat) return
+    const container = supportMessagesRef.current
+    if (container) container.scrollTop = container.scrollHeight
+  }, [supportMessages, showSupportChat])
+
   const getSupportReply = (query) => {
     const q = normalizeString(query)
     if (!q) return 'Please type your question.'
@@ -252,6 +267,14 @@ const Navbar = () => {
 
     setSupportMessages((prev) => [...prev, userMessage, botMessage])
     setSupportInput('')
+  }
+
+  const sendQuickSupportQuestion = (text) => {
+    const clean = (text || '').trim()
+    if (!clean) return
+    const userMessage = { id: `u-${Date.now()}`, role: 'user', text: clean }
+    const botMessage = { id: `a-${Date.now() + 1}`, role: 'assistant', text: getSupportReply(clean) }
+    setSupportMessages((prev) => [...prev, userMessage, botMessage])
   }
 
   return (
@@ -364,16 +387,40 @@ const Navbar = () => {
                 initial={{ opacity: 0, y: -10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 h-[460px] flex flex-col"
+                className="fixed top-20 right-6 w-[min(92vw,640px)] h-[75vh] max-h-[760px] bg-white rounded-xl shadow-2xl border border-gray-200 z-50 flex flex-col"
               >
                 {/* Header */}
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                   <h3 className="font-bold text-gray-900">Support Chat</h3>
-                  <span className="text-xs text-green-600 font-medium">Online</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-green-600 font-medium">Online</span>
+                    <button
+                      onClick={() => setShowSupportChat(false)}
+                      className="p-1 rounded hover:bg-gray-100 text-gray-500"
+                      title="Close support chat"
+                    >
+                      <FiX size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Suggested Questions */}
+                <div className="px-3 py-2 border-b border-gray-100 bg-gray-50">
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {suggestedQuestions.map((question) => (
+                      <button
+                        key={question}
+                        onClick={() => sendQuickSupportQuestion(question)}
+                        className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-full border border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 transition"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Messages */}
-                <div className="overflow-y-auto flex-1">
+                <div className="overflow-y-auto flex-1" ref={supportMessagesRef}>
                   <div className="p-3 space-y-2">
                     {supportMessages.map((msg) => (
                       <div
