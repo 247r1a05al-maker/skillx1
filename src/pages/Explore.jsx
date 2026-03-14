@@ -646,6 +646,20 @@ const Explore = () => {
 
           <div className="lg:w-[720px]">
             <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-2">Switch User View</p>
+            <div className="mb-2">
+              <label htmlFor="layout-model-select" className="text-xs font-semibold text-gray-600">Choose model</label>
+              <select
+                id="layout-model-select"
+                value={layoutModel}
+                onChange={(e) => setLayoutModel(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                aria-label="Choose Explore user layout model"
+              >
+                {MODEL_OPTIONS.map((model) => (
+                  <option key={`select-${model.key}`} value={model.key}>{model.title} - {model.subtitle}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex gap-2 overflow-x-auto pb-1">
               {MODEL_OPTIONS.map((model) => (
                 <button
