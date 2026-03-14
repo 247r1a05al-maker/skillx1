@@ -110,11 +110,17 @@ const POST_TYPE_OPTIONS = [
 
 const DEFAULT_POST_FORM = {
   type: 'update',
+  visibility: 'profile',
   title: '',
   content: '',
   imageUrl: '',
   videoUrl: '',
   projectLink: '',
+  toolsUsed: '',
+  role: '',
+  teamSize: '',
+  learned: '',
+  askFeedback: false,
   tags: '',
 }
 
@@ -279,6 +285,7 @@ const Profile = () => {
   const [postComments, setPostComments] = useState([])
   const [newCommentText, setNewCommentText] = useState('')
   const [postForm, setPostForm] = useState(DEFAULT_POST_FORM)
+  const [postComposerMode, setPostComposerMode] = useState('basic')
   const [postFormError, setPostFormError] = useState('')
 
   const [showFollowersModal, setShowFollowersModal] = useState(false)
@@ -678,6 +685,7 @@ const Profile = () => {
 
   const resetPostForm = () => {
     setPostForm(DEFAULT_POST_FORM)
+    setPostComposerMode('basic')
     setPostFormError('')
   }
 
@@ -688,20 +696,61 @@ const Profile = () => {
 
   const activePostTypeCopy = POST_TYPE_FORM_COPY[postForm.type] || POST_TYPE_FORM_COPY.update
 
+  const handleAIAssistForPost = () => {
+    const content = postForm.content.trim()
+    if (!content) {
+      setPostFormError('Write one line about your post, then click AI Assist.')
+      return
+    }
+
+    const lines = content.split(/\n+/).map((line) => line.trim()).filter(Boolean)
+    const firstLine = lines[0] || content
+
+    const title = postForm.title.trim()
+      || firstLine.slice(0, 72)
+      || `${POST_TYPE_META[postForm.type]?.label || 'Post'} update`
+
+    const keywordPool = content
+      .toLowerCase()
+      .replace(/[^a-z0-9\s+#.-]/g, ' ')
+      .split(/\s+/)
+      .map((word) => word.trim())
+      .filter((word) => word.length >= 3)
+
+    const stopWords = new Set(['with', 'from', 'that', 'this', 'have', 'your', 'about', 'using', 'build', 'built', 'into', 'they', 'them', 'their', 'what', 'when', 'where'])
+    const smartWords = [...new Set(keywordPool.filter((word) => !stopWords.has(word)))].slice(0, 4)
+    const suggestedTags = [...new Set([postForm.type, ...smartWords])].slice(0, 6)
+
+    const generatedBody = `${content}\n\nHighlights:\n- Key idea: ${firstLine}\n- Why it matters: Share your impact in one line.\n\nWhat I learned:\n- `
+
+    setPostForm((prev) => ({
+      ...prev,
+      title,
+      content: generatedBody,
+      tags: prev.tags.trim() ? prev.tags : suggestedTags.join(', '),
+    }))
+    setPostComposerMode('advanced')
+    setPostFormError('')
+  }
+
   const handleCreatePost = async () => {
     const title = postForm.title.trim()
     const content = postForm.content.trim()
     const imageUrl = postForm.imageUrl.trim()
     const videoUrl = postForm.videoUrl.trim()
     const projectLink = postForm.projectLink.trim()
+    const toolsUsed = postForm.toolsUsed.trim()
+    const role = postForm.role.trim()
+    const teamSize = postForm.teamSize.trim()
+    const learned = postForm.learned.trim()
 
     if (!content) {
       setPostFormError('Content is required.')
       return
     }
 
-    if (content.length < activePostTypeCopy.minLength) {
-      setPostFormError(`Content must be at least ${activePostTypeCopy.minLength} characters for ${postForm.type} posts.`)
+    if (content.length < 20) {
+      setPostFormError('Content should be at least 20 characters.')
       return
     }
 
@@ -762,6 +811,24 @@ const Profile = () => {
       }
       formattedContent += `\n\n${content}`
 
+      if (toolsUsed) {
+        formattedContent += `\n\n🛠 Tools: ${toolsUsed}`
+      }
+
+      if (role || teamSize) {
+        const rolePart = role ? `Role: ${role}` : ''
+        const teamPart = teamSize ? `Team: ${teamSize}` : ''
+        formattedContent += `\n\n👥 ${[rolePart, teamPart].filter(Boolean).join(' • ')}`
+      }
+
+      if (learned) {
+        formattedContent += `\n\n📘 What I learned: ${learned}`
+      }
+
+      if (postForm.askFeedback) {
+        formattedContent += '\n\n💬 Feedback welcome'
+      }
+
       if (projectLink) {
         formattedContent += `\n\n🔗 Link: ${projectLink}`
       }
@@ -771,7 +838,7 @@ const Profile = () => {
         content: formattedContent,
         title,
         type: postForm.type,
-        visibility: 'profile',
+        visibility: postForm.visibility === 'community' ? 'community' : 'profile',
         projectLink: projectLink || null,
         image: imageUrl || null,
         video: videoUrl || null,
@@ -1446,6 +1513,35 @@ const Profile = () => {
                 </p>
               )}
 
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                <p className="text-sm font-semibold text-indigo-900">Post comfortably</p>
+                <p className="text-xs text-indigo-700 mt-1">Only Post Type and Content are required. Everything else is optional and can be added later.</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPostComposerMode('basic')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${postComposerMode === 'basic' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                >
+                  Basic mode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPostComposerMode('advanced')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${postComposerMode === 'advanced' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                >
+                  Advanced mode
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAIAssistForPost}
+                  className="ml-auto px-3 py-1.5 rounded-full text-xs font-semibold border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50"
+                >
+                  AI Assist
+                </button>
+              </div>
+
               {/* Post Type Selection */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Post Type</label>
@@ -1510,66 +1606,137 @@ const Profile = () => {
                   placeholder={activePostTypeCopy.contentPlaceholder}
                 />
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-gray-500">Minimum {activePostTypeCopy.minLength} characters for this post type</p>
+                  <p className="text-xs text-gray-500">Minimum 20 characters</p>
                   <p className="text-xs text-gray-500">{postForm.content.trim().length}/2000</p>
                 </div>
               </div>
 
-              {/* Image URL */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                  <FiImage size={14} /> Image URL <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="url"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  value={postForm.imageUrl}
-                  onChange={(e) => setPostForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
-                  placeholder="https://example.com/image.jpg"
-                />
-              </div>
-
-              {/* Video URL */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                  <FiVideo size={14} /> Video URL <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="url"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  value={postForm.videoUrl}
-                  onChange={(e) => setPostForm((prev) => ({ ...prev, videoUrl: e.target.value }))}
-                  placeholder="https://example.com/video.mp4"
-                />
-              </div>
-
-              {/* Project Link */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
-                  <FiLink size={14} /> {activePostTypeCopy.linkLabel} <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="url"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  value={postForm.projectLink}
-                  onChange={(e) => setPostForm((prev) => ({ ...prev, projectLink: e.target.value }))}
-                  placeholder={activePostTypeCopy.linkPlaceholder}
-                />
-              </div>
-
-              {/* Tags */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tags <span className="text-gray-400 font-normal">(comma-separated)</span>
+                  Visibility <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  value={postForm.tags}
-                  onChange={(e) => setPostForm((prev) => ({ ...prev, tags: e.target.value }))}
-                  placeholder={activePostTypeCopy.tagsPlaceholder}
-                />
+                  value={postForm.visibility}
+                  onChange={(e) => setPostForm((prev) => ({ ...prev, visibility: e.target.value }))}
+                >
+                  <option value="profile">Profile only</option>
+                  <option value="community">Community feed</option>
+                </select>
               </div>
+
+              {postComposerMode === 'advanced' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Tools used <span className="text-gray-400 font-normal">(optional, comma-separated)</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={postForm.toolsUsed}
+                      onChange={(e) => setPostForm((prev) => ({ ...prev, toolsUsed: e.target.value }))}
+                      placeholder="React, Firebase, Tailwind"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Role <span className="text-gray-400 font-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        value={postForm.role}
+                        onChange={(e) => setPostForm((prev) => ({ ...prev, role: e.target.value }))}
+                        placeholder="Frontend Developer"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Team size <span className="text-gray-400 font-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        value={postForm.teamSize}
+                        onChange={(e) => setPostForm((prev) => ({ ...prev, teamSize: e.target.value }))}
+                        placeholder="Solo / Team of 3"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">What I learned <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <textarea
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={postForm.learned}
+                      onChange={(e) => setPostForm((prev) => ({ ...prev, learned: e.target.value }))}
+                      placeholder="Write one key learning..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      <FiImage size={14} /> Image URL <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="url"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={postForm.imageUrl}
+                      onChange={(e) => setPostForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      <FiVideo size={14} /> Video URL <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="url"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={postForm.videoUrl}
+                      onChange={(e) => setPostForm((prev) => ({ ...prev, videoUrl: e.target.value }))}
+                      placeholder="https://example.com/video.mp4"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      <FiLink size={14} /> {activePostTypeCopy.linkLabel} <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="url"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={postForm.projectLink}
+                      onChange={(e) => setPostForm((prev) => ({ ...prev, projectLink: e.target.value }))}
+                      placeholder={activePostTypeCopy.linkPlaceholder}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Tags <span className="text-gray-400 font-normal">(comma-separated)</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={postForm.tags}
+                      onChange={(e) => setPostForm((prev) => ({ ...prev, tags: e.target.value }))}
+                      placeholder={activePostTypeCopy.tagsPlaceholder}
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={postForm.askFeedback}
+                      onChange={(e) => setPostForm((prev) => ({ ...prev, askFeedback: e.target.checked }))}
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Ask for feedback on this post
+                  </label>
+                </>
+              )}
             </div>
 
             <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end gap-2 shrink-0 bg-white">
