@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FiHeart, FiMessageCircle, FiSend, FiTrash2, FiX, FiImage, FiZap, FiTrendingUp } from 'react-icons/fi'
+import { FiHeart, FiMessageCircle, FiSend, FiTrash2, FiX, FiImage } from 'react-icons/fi'
 import { Card, Button } from '../components/UI'
+import Avatar from '../components/Avatar'
 import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
 
@@ -183,10 +184,11 @@ const Community = () => {
 
   const getAuthorData = (authorId) => {
     const user = users[authorId]
-    if (!user) return { name: 'Unknown User', avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}` }
+    if (!user) return { name: 'Unknown User', avatar: '', userId: authorId }
     return {
       name: user.name || user.displayName || 'User',
-      avatar: user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${authorId}`,
+      avatar: user.avatar || '',
+      userId: user.id || authorId,
       isOnline: user.isOnline || false,
     }
   }
@@ -485,10 +487,12 @@ const Community = () => {
                     <div className="flex items-start gap-3 flex-1">
                       {/* Avatar with Online Status */}
                       <div className="relative">
-                        <img
+                        <Avatar
                           src={author.avatar}
-                          alt={author.name}
-                          className="w-12 h-12 rounded-full ring-2 ring-indigo-100"
+                          name={author.name}
+                          userId={author.userId}
+                          size="md"
+                          className="ring-2 ring-indigo-100"
                         />
                         {author.isOnline && (
                           <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
@@ -518,22 +522,6 @@ const Community = () => {
                             <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium flex items-center gap-1">
                               🟢 Online
                             </span>
-                          )}
-                        </div>
-                        
-                        {/* User Stats Row */}
-                        <div className="flex items-center gap-4 text-xs text-gray-500 mb-1">
-                          {userStats[post.authorId] && (
-                            <>
-                              <span className="flex items-center gap-1">
-                                <FiTrendingUp size={14} />
-                                {userStats[post.authorId].followers || 0} followers
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <FiZap size={14} />
-                                {userStats[post.authorId].engagement || 0} engagement
-                              </span>
-                            </>
                           )}
                         </div>
                         
@@ -720,10 +708,12 @@ const Community = () => {
                   const commentAuthor = getAuthorData(comment.userId)
                   return (
                     <div key={comment.id} className="flex gap-3">
-                      <img
+                      <Avatar
                         src={commentAuthor.avatar}
-                        alt={commentAuthor.name}
-                        className="w-10 h-10 rounded-full flex-shrink-0"
+                        name={commentAuthor.name}
+                        userId={comment.userId}
+                        size="sm"
+                        className="flex-shrink-0"
                       />
                       <div className="flex-1">
                         <div className="bg-gray-100 rounded-lg px-4 py-2">
