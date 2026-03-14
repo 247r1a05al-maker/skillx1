@@ -696,43 +696,6 @@ const Profile = () => {
 
   const activePostTypeCopy = POST_TYPE_FORM_COPY[postForm.type] || POST_TYPE_FORM_COPY.update
 
-  const handleAIAssistForPost = () => {
-    const content = postForm.content.trim()
-    if (!content) {
-      setPostFormError('Write one line about your post, then click AI Assist.')
-      return
-    }
-
-    const lines = content.split(/\n+/).map((line) => line.trim()).filter(Boolean)
-    const firstLine = lines[0] || content
-
-    const title = postForm.title.trim()
-      || firstLine.slice(0, 72)
-      || `${POST_TYPE_META[postForm.type]?.label || 'Post'} update`
-
-    const keywordPool = content
-      .toLowerCase()
-      .replace(/[^a-z0-9\s+#.-]/g, ' ')
-      .split(/\s+/)
-      .map((word) => word.trim())
-      .filter((word) => word.length >= 3)
-
-    const stopWords = new Set(['with', 'from', 'that', 'this', 'have', 'your', 'about', 'using', 'build', 'built', 'into', 'they', 'them', 'their', 'what', 'when', 'where'])
-    const smartWords = [...new Set(keywordPool.filter((word) => !stopWords.has(word)))].slice(0, 4)
-    const suggestedTags = [...new Set([postForm.type, ...smartWords])].slice(0, 6)
-
-    const generatedBody = `${content}\n\nHighlights:\n- Key idea: ${firstLine}\n- Why it matters: Share your impact in one line.\n\nWhat I learned:\n- `
-
-    setPostForm((prev) => ({
-      ...prev,
-      title,
-      content: generatedBody,
-      tags: prev.tags.trim() ? prev.tags : suggestedTags.join(', '),
-    }))
-    setPostComposerMode('advanced')
-    setPostFormError('')
-  }
-
   const handleCreatePost = async () => {
     const title = postForm.title.trim()
     const content = postForm.content.trim()
@@ -1532,13 +1495,6 @@ const Profile = () => {
                   className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${postComposerMode === 'advanced' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
                 >
                   Advanced mode
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAIAssistForPost}
-                  className="ml-auto px-3 py-1.5 rounded-full text-xs font-semibold border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50"
-                >
-                  AI Assist
                 </button>
               </div>
 
