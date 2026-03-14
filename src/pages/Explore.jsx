@@ -80,13 +80,6 @@ const hashToIndex = (value, mod) => {
   return Math.abs(hash) % mod
 }
 
-const MODEL_OPTIONS = [
-  { key: 'linkedin', title: 'Model A', subtitle: 'LinkedIn' },
-  { key: 'spotlight', title: 'Model D', subtitle: 'Spotlight' },
-]
-
-const GRID_LAYOUT_MODELS = new Set([])
-
 const Explore = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -101,7 +94,6 @@ const Explore = () => {
   const [onlineFilter, setOnlineFilter] = useState('all')
   const [sortBy, setSortBy] = useState('most_active')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-  const [layoutModel, setLayoutModel] = useState('linkedin')
 
   const [followersCounts, setFollowersCounts] = useState({})
   const [groupsCounts, setGroupsCounts] = useState({})
@@ -288,9 +280,7 @@ const Explore = () => {
       .map(([name, count]) => ({ name, count }))
   }, [filteredAndSorted])
 
-  const cardsContainerClass = GRID_LAYOUT_MODELS.has(layoutModel)
-    ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'
-    : 'space-y-3'
+  const cardsContainerClass = 'space-y-3'
 
   const renderSkillPills = (skills, limit = 4) => (
     <div className="flex flex-wrap gap-1.5">
@@ -317,28 +307,6 @@ const Explore = () => {
       isVerified,
       bannerClass,
     } = cardData
-
-    if (layoutModel === 'spotlight') {
-      return (
-        <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-orange-50 shadow-sm p-4 hover:shadow-md transition">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="relative shrink-0"><Avatar src={user.avatar} name={user.name} userId={user.id} size="md" /><span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isOnline ? 'bg-green-500' : 'bg-slate-400'}`} /></div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2"><h3 className="text-base font-extrabold text-slate-900 truncate">{user.name || 'Member'}</h3>{isVerified ? <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">Verified</span> : null}</div>
-                <p className="text-sm text-slate-700 mt-0.5 line-clamp-1">{getTagline(user)}</p>
-                <div className="mt-2">{renderSkillPills(skills, 5)}</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 lg:w-[230px] text-sm">
-              <div className="rounded-lg bg-white border border-amber-200 px-3 py-2"><p className="text-xs text-slate-500">Followers</p><p className="font-extrabold text-slate-900">{followers}</p></div>
-              <div className="rounded-lg bg-white border border-amber-200 px-3 py-2"><p className="text-xs text-slate-500">Groups</p><p className="font-extrabold text-slate-900">{groups}</p></div>
-              <button type="button" className="col-span-2 rounded-lg bg-slate-900 text-white py-2 font-bold text-sm" onClick={() => navigate(`/profile/${user.id}`)}>Open Profile</button>
-            </div>
-          </div>
-        </div>
-      )
-    }
 
     return (
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:border-blue-300 hover:shadow-md transition-all duration-300">
@@ -417,38 +385,6 @@ const Explore = () => {
             <div className="text-sm text-gray-600 mt-1">Showing <span className="font-bold text-gray-900">{showingCount}</span> of <span className="font-bold text-gray-900">{filteredAndSorted.length}</span></div>
           </div>
 
-          <div className="lg:w-[720px]">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-2">Switch User View</p>
-            <p className="text-xs text-blue-700 font-semibold mb-2">{MODEL_OPTIONS.length} models loaded</p>
-            <div className="mb-2">
-              <label htmlFor="layout-model-select" className="text-xs font-semibold text-gray-600">Choose model</label>
-              <select
-                id="layout-model-select"
-                value={layoutModel}
-                onChange={(e) => setLayoutModel(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                aria-label="Choose Explore user layout model"
-              >
-                {MODEL_OPTIONS.map((model) => (
-                  <option key={`select-${model.key}`} value={model.key}>{model.title} - {model.subtitle}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
-              {MODEL_OPTIONS.map((model) => (
-                <button
-                  key={model.key}
-                  type="button"
-                  onClick={() => setLayoutModel(model.key)}
-                  className={`text-left rounded-xl border px-3 py-2 transition ${layoutModel === model.key ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
-                  aria-label={`Switch to ${model.title} ${model.subtitle}`}
-                >
-                  <p className="text-sm font-bold text-gray-900">{model.title}</p>
-                  <p className="text-xs text-gray-600 mt-0.5">{model.subtitle}</p>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
