@@ -471,9 +471,6 @@ const Explore = () => {
             <span className="px-3 py-1.5 rounded-full bg-green-50 border border-green-100 text-green-700 text-sm font-bold">
               <FiActivity className="inline mr-1" /> {onlineMembersCount} Online
             </span>
-            <span className="px-3 py-1.5 rounded-full bg-amber-50 border border-amber-100 text-amber-700 text-sm font-bold">
-              <FiTrendingUp className="inline mr-1" /> {topSkillTags.length} Hot Skills
-            </span>
           </div>
         </div>
 
