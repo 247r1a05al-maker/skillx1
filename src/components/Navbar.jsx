@@ -267,11 +267,15 @@ const Navbar = () => {
       hasAny(['what is', 'about', 'useful', 'website', 'platform', 'skill exchange', 'skillx', 'purpose'])
 
     if (hasAny(['hi', 'hello', 'hey'])) {
-      return 'Hi! I can help with Skill Exchange basics like Profile, Posts, Community, Explore, Coins, Badges, Groups, and Inbox.'
+      return 'Hi! Welcome to Skill Exchange support. Tell me what you want to do, and I will guide you step by step.'
     }
 
     if (asksAboutPlatform) {
       return 'Skill Exchange helps users teach and learn skills, create posts, join groups, and connect with community members.'
+    }
+
+    if (hasAny(['explain', 'tell me']) && hasAny(['skillx', 'skill exchange', 'platform'])) {
+      return 'Skill Exchange is a student-focused platform to learn and teach skills, post updates, join groups, chat with members, and grow with badges and coins.'
     }
 
     if (hasAny(['badge', 'badges', 'batch', 'batches'])) {
@@ -334,7 +338,7 @@ const Navbar = () => {
       return 'You are welcome. Ask anything about Skill Exchange features and I will help quickly.'
     }
 
-    return 'I can help with Skill Exchange basics. Try asking about Profile, Posts, Community, Explore, Coins, Badges, Groups, or Inbox.'
+    return 'I understood your message. Please tell me your exact goal in one line, for example: create post, join group, edit profile, or check coins.'
   }
 
   const sendSupportMessage = () => {
