@@ -6,6 +6,7 @@ import Avatar from '../components/Avatar'
 import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
 import { useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { getGroupVisualTheme, SKILL_CATEGORIES } from '../utils/groupCovers'
 
 const GroupCardHeader = ({ group }) => {
@@ -43,6 +44,7 @@ const JOIN_GROUP_COST = 10
 const Groups = () => {
   const { user: authUser } = useAuthStore()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [groups, setGroups] = useState([])
   const [userGroups, setUserGroups] = useState([])
   const [groupMembers, setGroupMembers] = useState({}) // Store members for each group
@@ -65,6 +67,11 @@ const Groups = () => {
     description: createForm.description,
     skillCategory: createForm.skillCategory || 'General',
   })
+
+  useEffect(() => {
+    const q = searchParams.get('q') || ''
+    setSearchQuery(q)
+  }, [searchParams])
 
   // Load groups and user's groups
   useEffect(() => {

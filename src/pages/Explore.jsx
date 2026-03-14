@@ -10,6 +10,7 @@ import {
   FiUsers,
 } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../store'
 import firebaseRealtime from '../services/firebase-realtime'
 import Avatar from '../components/Avatar'
@@ -69,6 +70,7 @@ const hashToIndex = (value, mod) => {
 
 const Explore = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user: authUser } = useAuthStore()
   const currentUserId = authUser?.uid || authUser?.id
 
@@ -83,6 +85,11 @@ const Explore = () => {
 
   const [followersCounts, setFollowersCounts] = useState({})
   const [groupsCounts, setGroupsCounts] = useState({})
+
+  useEffect(() => {
+    const q = searchParams.get('q') || ''
+    setSearchQuery(q)
+  }, [searchParams])
 
   // Load users from Firebase in real-time
   useEffect(() => {

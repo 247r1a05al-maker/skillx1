@@ -7,6 +7,17 @@ import { useTheme } from '../context/ThemeContext'
 import { useDebounce } from '../hooks'
 import { authService } from '../services/auth'
 import firebaseRealtime from '../services/firebase-realtime'
+import Avatar from './Avatar'
+
+const normalizeString = (value) => (value || '').toString().trim().toLowerCase()
+
+const getUserSkills = (user) => {
+  if (!user) return []
+  if (Array.isArray(user.skills)) return user.skills.filter(Boolean)
+  const teaching = Array.isArray(user.skills?.teaching) ? user.skills.teaching : []
+  const learning = Array.isArray(user.skills?.learning) ? user.skills.learning : []
+  return [...teaching, ...learning].filter(Boolean)
+}
 
 const Navbar = () => {
   const navigate = useNavigate()
@@ -22,19 +33,74 @@ const Navbar = () => {
   const [loggingOut, setLoggingOut] = useState(false)
   const [followRequestCount, setFollowRequestCount] = useState(0)
   const [groupInvitationCount, setGroupInvitationCount] = useState(0)
+  const [allUsers, setAllUsers] = useState([])
+  const [allGroups, setAllGroups] = useState([])
   const notificationRef = useRef(null)
+  const searchRef = useRef(null)
+
+  const currentUserId = user?.uid || user?.id
 
   const handleSearch = useDebounce((query) => {
-    if (query.trim()) {
-      // Mock search results
-      setSearchResults([
-        { id: 1, name: 'John Doe', type: 'user', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=john' },
-        { id: 2, name: 'JavaScript', type: 'skill' },
-        { id: 3, name: 'Web Development', type: 'group' },
-      ])
-    } else {
+    const clean = normalizeString(query)
+    if (!clean) {
       setSearchResults([])
+      return
     }
+
+    const userResults = allUsers
+      .filter((item) => item?.id && item.id !== currentUserId)
+      .filter((item) => {
+        const name = normalizeString(item.name)
+        const bio = normalizeString(item.bio)
+        const role = normalizeString(item.role || item.title)
+        const skills = getUserSkills(item).map(normalizeString)
+        return name.includes(clean) || bio.includes(clean) || role.includes(clean) || skills.some((skill) => skill.includes(clean))
+      })
+      .slice(0, 5)
+      .map((item) => ({
+        id: item.id,
+        name: item.name || 'User',
+        subtitle: item.role || item.title || item.bio || 'Member',
+        type: 'user',
+        avatar: item.avatar || '',
+      }))
+
+    const skillMap = new Map()
+    allUsers.forEach((item) => {
+      getUserSkills(item).forEach((skill) => {
+        const label = (skill || '').toString().trim()
+        if (!label) return
+        if (!normalizeString(label).includes(clean)) return
+        const existing = skillMap.get(label) || { count: 0 }
+        skillMap.set(label, { count: existing.count + 1 })
+      })
+    })
+    const skillResults = Array.from(skillMap.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 4)
+      .map(([name, meta]) => ({
+        id: name,
+        name,
+        subtitle: `${meta.count} member${meta.count !== 1 ? 's' : ''} mention this skill`,
+        type: 'skill',
+      }))
+
+    const groupResults = allGroups
+      .filter((group) => {
+        const name = normalizeString(group.name)
+        const description = normalizeString(group.description)
+        const category = normalizeString(group.skillCategory)
+        return name.includes(clean) || description.includes(clean) || category.includes(clean)
+      })
+      .slice(0, 4)
+      .map((group) => ({
+        id: group.id,
+        name: group.name || 'Group',
+        subtitle: group.skillCategory || group.description || 'Group',
+        type: 'group',
+      }))
+
+    setSearchResults([...userResults, ...skillResults, ...groupResults].slice(0, 10))
   }, 300)
 
   const handleSearchChange = (e) => {
@@ -93,11 +159,36 @@ const Navbar = () => {
     return () => unsubscribe?.()
   }, [user])
 
+  // Subscribe to users for real global search
+  useEffect(() => {
+    if (!currentUserId) return () => {}
+
+    const unsubscribe = firebaseRealtime.subscribeToUsers((users) => {
+      const uniqueUsers = Array.from(new Map((users || []).map((item) => [item.id, item])).values())
+      setAllUsers(uniqueUsers)
+    })
+
+    return () => unsubscribe?.()
+  }, [currentUserId])
+
+  // Subscribe to groups for real global search
+  useEffect(() => {
+    const unsubscribe = firebaseRealtime.subscribeToGroups((groups) => {
+      const uniqueGroups = Array.from(new Map((groups || []).map((item) => [item.id, item])).values())
+      setAllGroups(uniqueGroups)
+    })
+
+    return () => unsubscribe?.()
+  }, [])
+
   // Close notifications dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
         setShowNotifications(false)
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchDropdown(false)
       }
     }
 
@@ -157,7 +248,7 @@ const Navbar = () => {
         </button>
 
         <div className="relative flex-1">
-          <div className="relative">
+          <div className="relative" ref={searchRef}>
             <FiSearch className="absolute left-3 top-3 theme-text-tertiary" size={20} />
             <input
               type="text"
@@ -170,27 +261,38 @@ const Navbar = () => {
           </div>
 
           {/* Search Dropdown */}
-          {showSearchDropdown && searchResults.length > 0 && (
+          {showSearchDropdown && searchQuery.trim() && (
             <div className="absolute top-full mt-2 w-full theme-card rounded-lg shadow-lg z-50 border">
-              {searchResults.map((result) => (
+              {searchResults.length > 0 ? searchResults.map((result) => (
                 <div
                   key={`${result.type}-${result.id}`}
                   onClick={() => {
                     if (result.type === 'user') navigate(`/profile/${result.id}`)
+                    if (result.type === 'skill') navigate(`/explore?q=${encodeURIComponent(result.name)}`)
+                    if (result.type === 'group') navigate(`/groups?q=${encodeURIComponent(result.name)}`)
                     setSearchQuery('')
+                    setSearchResults([])
                     setShowSearchDropdown(false)
                   }}
                   className="px-4 py-3 hover:bg-gray-50 cursor-pointer flex items-center gap-3 border-b border-gray-100 last:border-b-0"
                 >
                   {result.type === 'user' && (
-                    <img src={result.avatar} alt={result.name} className="w-8 h-8 rounded-full" />
+                    <Avatar src={result.avatar} name={result.name} userId={result.id} size="sm" />
+                  )}
+                  {result.type === 'skill' && (
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">#</div>
+                  )}
+                  {result.type === 'group' && (
+                    <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold"><FiUsers size={14} /></div>
                   )}
                   <div>
                     <p className="text-sm font-medium text-gray-900">{result.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{result.type}</p>
+                    <p className="text-xs text-gray-500 capitalize">{result.type} {result.subtitle ? `• ${result.subtitle}` : ''}</p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="px-4 py-4 text-sm text-gray-500">No results found</div>
+              )}
             </div>
           )}
         </div>
