@@ -646,6 +646,7 @@ const Explore = () => {
 
           <div className="lg:w-[720px]">
             <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-2">Switch User View</p>
+            <p className="text-xs text-blue-700 font-semibold mb-2">{MODEL_OPTIONS.length} models loaded</p>
             <div className="mb-2">
               <label htmlFor="layout-model-select" className="text-xs font-semibold text-gray-600">Choose model</label>
               <select
@@ -660,13 +661,13 @@ const Explore = () => {
                 ))}
               </select>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
               {MODEL_OPTIONS.map((model) => (
                 <button
                   key={model.key}
                   type="button"
                   onClick={() => setLayoutModel(model.key)}
-                  className={`text-left rounded-xl border px-3 py-2 min-w-[132px] transition ${layoutModel === model.key ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
+                  className={`text-left rounded-xl border px-3 py-2 transition ${layoutModel === model.key ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
                   aria-label={`Switch to ${model.title} ${model.subtitle}`}
                 >
                   <p className="text-sm font-bold text-gray-900">{model.title}</p>
